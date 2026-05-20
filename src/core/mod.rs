@@ -1,6 +1,6 @@
-//! Shared core-level schemas and contracts used across adapters (RPC, CLI, etc.).
+﻿//! Shared core-level schemas and contracts used across adapters (RPC, CLI, etc.).
 //!
-//! This module defines the foundational types for OpenHuman's controller system,
+//! This module defines the foundational types for Benito's controller system,
 //! which provides a transport-agnostic way to define and invoke domain logic.
 //! It also exports submodules for CLI handling, event bus, and RPC server.
 
@@ -134,13 +134,13 @@ mod tests {
 
     #[test]
     fn method_name_is_not_an_rpc_method_name() {
-        // The dotted controller key and the `openhuman.<ns>_<fn>` RPC method
+        // The dotted controller key and the `Benito.<ns>_<fn>` RPC method
         // name are intentionally different — guard against drift.
         let s = mk("memory", "doc_put");
         assert_eq!(s.method_name(), "memory.doc_put");
         assert_eq!(
             crate::core::all::rpc_method_name(&s),
-            "openhuman.memory_doc_put"
+            "Benito.memory_doc_put"
         );
     }
 

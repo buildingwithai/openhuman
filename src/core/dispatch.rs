@@ -1,7 +1,7 @@
-//! Central dispatcher for RPC requests.
+﻿//! Central dispatcher for RPC requests.
 //!
 //! This module coordinates the routing of incoming requests to either the
-//! core subsystem or the OpenHuman domain-specific handlers.
+//! core subsystem or the Benito domain-specific handlers.
 
 use crate::core::legacy_aliases::resolve_legacy;
 use crate::core::rpc_log;
@@ -13,7 +13,7 @@ use serde_json::{json, Map, Value};
 /// This is the primary entry point for all RPC calls. It uses a tiered routing
 /// strategy:
 /// 1. **Core Subsystem**: Checks for internal methods like `core.ping` or `core.version`.
-/// 2. **Domain-Specific Handlers**: Delegates to the `openhuman` domain dispatcher
+/// 2. **Domain-Specific Handlers**: Delegates to the `Benito` domain dispatcher
 ///    which handles all registered controllers (memory, skills, etc.).
 ///
 /// # Arguments
@@ -76,7 +76,7 @@ pub async fn dispatch(
     // Tier 3: Legacy domain-specific dispatcher.
     if let Some(result) = crate::rpc::try_dispatch(method, params).await {
         log::debug!(
-            "[rpc:dispatch] routed method={} subsystem=openhuman",
+            "[rpc:dispatch] routed method={} subsystem=Benito",
             method
         );
         return result;
@@ -182,13 +182,13 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_rewrites_legacy_alias_before_lookup() {
-        // `openhuman.ping` is a legacy alias for `core.ping` in the shared
+        // `Benito.ping` is a legacy alias for `core.ping` in the shared
         // alias table. Going through the dispatcher must rewrite it and
         // route successfully to Tier 1 instead of falling through to the
         // unknown-method error path.
-        let out = dispatch(test_state(), "openhuman.ping", json!({}))
+        let out = dispatch(test_state(), "Benito.ping", json!({}))
             .await
-            .expect("legacy alias openhuman.ping must resolve to core.ping");
+            .expect("legacy alias Benito.ping must resolve to core.ping");
         assert_eq!(out, json!({ "ok": true }));
     }
 
@@ -211,9 +211,9 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_delegates_to_tier2_for_domain_method() {
-        // Tier 2 dispatcher handles `openhuman.security_policy_info`, so
+        // Tier 2 dispatcher handles `Benito.security_policy_info`, so
         // it must succeed and return a policy object.
-        let out = dispatch(test_state(), "openhuman.security_policy_info", json!({}))
+        let out = dispatch(test_state(), "Benito.security_policy_info", json!({}))
             .await
             .expect("security_policy_info should route via tier 2");
         // With logs present, payload is wrapped as { result, logs }.
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn try_core_dispatch_returns_none_for_non_core_namespace() {
         let state = test_state();
-        assert!(try_core_dispatch(&state, "openhuman.memory_list_namespaces", json!({})).is_none());
+        assert!(try_core_dispatch(&state, "Benito.memory_list_namespaces", json!({})).is_none());
         assert!(try_core_dispatch(&state, "corez.ping", json!({})).is_none());
     }
 
@@ -251,19 +251,19 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_legacy_ping_rewrites_and_succeeds() {
-        let out = dispatch(test_state(), "openhuman.ping", json!({}))
+        let out = dispatch(test_state(), "Benito.ping", json!({}))
             .await
-            .expect("openhuman.ping should be rewritten to core.ping and succeed");
+            .expect("Benito.ping should be rewritten to core.ping and succeed");
         assert_eq!(out, json!({ "ok": true }));
     }
 
     #[tokio::test]
     async fn dispatch_legacy_alias_routes_to_registry() {
-        // openhuman.get_analytics_settings should rewrite to openhuman.config_get_analytics_settings.
+        // Benito.get_analytics_settings should rewrite to Benito.config_get_analytics_settings.
         // This is a read-only call and should succeed if the registry is wired up.
-        let out = dispatch(test_state(), "openhuman.get_analytics_settings", json!({}))
+        let out = dispatch(test_state(), "Benito.get_analytics_settings", json!({}))
             .await
-            .expect("openhuman.get_analytics_settings should be rewritten and succeed");
+            .expect("Benito.get_analytics_settings should be rewritten and succeed");
 
         // The registry-wrapped payload has a "result" field.
         assert!(

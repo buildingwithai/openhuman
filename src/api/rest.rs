@@ -1,4 +1,4 @@
-//! HTTP client for TinyHumans / AlphaHuman API routes (`/auth/...`, etc.).
+﻿//! HTTP client for TinyHumans / AlphaHuman API routes (`/auth/...`, etc.).
 
 use anyhow::{Context, Result};
 use base64::Engine;
@@ -19,7 +19,7 @@ pub enum BackendApiError {
     /// Slack, …) but our local `StreamingState` still has the id, or when
     /// the backend GC'd the relay row before we got around to editing it.
     /// Callers should clear stale state and skip the retry. Targets
-    /// `OPENHUMAN-TAURI-2Y` (~454 events on `/channels/telegram/messages/<id>`).
+    /// `Benito-TAURI-2Y` (~454 events on `/channels/telegram/messages/<id>`).
     #[error("message not found on {provider}: {message_id}")]
     MessageNotFound {
         /// Channel provider segment (e.g. `"telegram"`, `"discord"`).
@@ -508,7 +508,7 @@ impl BackendOAuthClient {
             // `BackendApiError::MessageNotFound` so callers (`bus.rs`
             // streaming/thinking/delete/final paths) can clear stale
             // ids and skip retry, without funneling the 404 into
-            // `report_error`. Targets `OPENHUMAN-TAURI-2Y` (~454 events).
+            // `report_error`. Targets `Benito-TAURI-2Y` (~454 events).
             if status_code == 404 {
                 if let Some((provider, message_id)) = parse_message_path(url.path()) {
                     tracing::info!(
@@ -533,7 +533,7 @@ impl BackendOAuthClient {
             let is_transient_infra =
                 crate::core::observability::is_transient_http_status_code(status_code);
             let is_budget_exhausted = status_code == 400
-                && crate::openhuman::inference::provider::is_budget_exhausted_message(&text);
+                && crate::benito::inference::provider::is_budget_exhausted_message(&text);
             if is_budget_exhausted {
                 tracing::info!(
                     method = method.as_str(),

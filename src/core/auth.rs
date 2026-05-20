@@ -1,13 +1,13 @@
-//! Per-process RPC bearer-token authentication.
+﻿//! Per-process RPC bearer-token authentication.
 //!
 //! At server startup, [`init_rpc_token`] either reads the token from the
-//! `OPENHUMAN_CORE_TOKEN` environment variable (Tauri-spawned path) or
+//! `benito_core_TOKEN` environment variable (Tauri-spawned path) or
 //! generates a 256-bit cryptographically-random token and writes it to
 //! `{workspace_dir}/core.token` (owner-read-only on Unix, standalone CLI path),
 //! then stores it in a process-global [`OnceLock`].
 //!
 //! **Tauri path**: the Tauri shell generates the token in
-//! `CoreProcessHandle::new()`, injects it as `OPENHUMAN_CORE_TOKEN` before
+//! `CoreProcessHandle::new()`, injects it as `benito_core_TOKEN` before
 //! spawning the core process, and holds it in memory via
 //! `CoreProcessHandle.rpc_token`.  The shell includes the token in every
 //! request as `Authorization: Bearer <token>`.  The `core.token` file is
@@ -81,15 +81,15 @@ const QUERY_TOKEN_PATHS: &[&str] = &["/events/webhooks"];
 /// The environment variable the Tauri shell sets before spawning the core.
 ///
 /// When this variable is present the core uses its value as the RPC token
-/// (no file I/O needed).  When absent (standalone `openhuman core run`) the
+/// (no file I/O needed).  When absent (standalone `Benito core run`) the
 /// core generates a token and writes it to `{workspace_dir}/core.token` so
 /// CLI clients can authenticate.
-pub const CORE_TOKEN_ENV_VAR: &str = "OPENHUMAN_CORE_TOKEN";
+pub const CORE_TOKEN_ENV_VAR: &str = "benito_core_TOKEN";
 
 /// Initialize the per-process RPC token.
 ///
 /// **Preferred path — Tauri-spawned core**: reads the token from the
-/// `OPENHUMAN_CORE_TOKEN` environment variable set by the Tauri shell.  No
+/// `benito_core_TOKEN` environment variable set by the Tauri shell.  No
 /// file is written; the token is always available the instant the process
 /// starts.
 ///

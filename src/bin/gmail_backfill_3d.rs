@@ -1,4 +1,4 @@
-//! Backfill the last N days of Gmail into the memory-tree content store.
+﻿//! Backfill the last N days of Gmail into the memory-tree content store.
 //!
 //! Authenticates via Composio (JWT from `<workspace>/auth-profiles.json`),
 //! fetches Gmail pages via `GMAIL_FETCH_EMAILS`, converts each thread into an
@@ -12,7 +12,7 @@
 //!
 //! # Prerequisites
 //!
-//! - Signed-in openhuman session JWT in the same workspace the desktop app
+//! - Signed-in Benito session JWT in the same workspace the desktop app
 //!   uses (stored at `<workspace>/auth-profiles.json`).
 //! - Active Gmail connection on Composio for that user.
 //!
@@ -33,19 +33,19 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use serde_json::{json, Value};
 
-use openhuman_core::openhuman::composio::client::{
+use benito_core::benito::composio::client::{
     create_composio_client, direct_execute, ComposioClientKind,
 };
-use openhuman_core::openhuman::composio::providers::gmail::ingest::ingest_page_into_memory_tree;
-use openhuman_core::openhuman::composio::providers::registry::{
+use benito_core::benito::composio::providers::gmail::ingest::ingest_page_into_memory_tree;
+use benito_core::benito::composio::providers::registry::{
     get_provider, init_default_providers,
 };
-use openhuman_core::openhuman::config::Config;
-use openhuman_core::openhuman::memory::tree::content_store::read::{
+use benito_core::benito::config::Config;
+use benito_core::benito::memory::tree::content_store::read::{
     verify_chunk_file, verify_summary_file, VerifyResult,
 };
-use openhuman_core::openhuman::memory::tree::jobs::drain_until_idle;
-use openhuman_core::openhuman::memory::tree::store::{
+use benito_core::benito::memory::tree::jobs::drain_until_idle;
+use benito_core::benito::memory::tree::store::{
     get_chunk_content_pointers, list_chunks, list_summaries_with_content_path, ListChunksQuery,
 };
 

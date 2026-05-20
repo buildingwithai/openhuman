@@ -1,4 +1,4 @@
-use super::{key_bytes_from_string, sanitize_client_version, BackendApiError, BackendOAuthClient};
+﻿use super::{key_bytes_from_string, sanitize_client_version, BackendApiError, BackendOAuthClient};
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::routing::{get, post};
@@ -216,7 +216,7 @@ async fn backend_client_sends_x_core_version_on_auth_requests() {
     );
 }
 
-// Regression: OPENHUMAN-TAURI-8K / Sentry issue 7473650958.
+// Regression: Benito-TAURI-8K / Sentry issue 7473650958.
 // When config.api_url is a full LLM completions URL (e.g. /v1/chat/completions),
 // Url::join used to produce wrong paths like /v1/chat/teams/me/usage instead of
 // /teams/me/usage — BackendOAuthClient::new must strip the path to prevent this.
@@ -290,7 +290,7 @@ async fn authed_json_surfaces_message_not_found_on_404() {
     let base_url = format!("http://{addr}");
     let client = BackendOAuthClient::new(&base_url).unwrap();
 
-    // Telegram path — matches OPENHUMAN-TAURI-2Y shape.
+    // Telegram path — matches Benito-TAURI-2Y shape.
     let err = client
         .authed_json(
             "mock-jwt",

@@ -1,4 +1,4 @@
-//! Manual smoke/backfill trigger for the Composio-backed Slack
+﻿//! Manual smoke/backfill trigger for the Composio-backed Slack
 //! provider.
 //!
 //! Invokes the same path the 15-minute periodic scheduler uses —
@@ -8,7 +8,7 @@
 //!
 //! # Prerequisites
 //!
-//! - A working openhuman install (same workspace dir the desktop app
+//! - A working Benito install (same workspace dir the desktop app
 //!   uses) with a signed-in session JWT.
 //! - A Slack connection created via Composio's OAuth flow (e.g. from
 //!   the desktop app's Integrations screen). No self-hosted Slack App
@@ -20,14 +20,14 @@
 //! # Usage
 //!
 //! ```sh
-//! export OPENHUMAN_WORKSPACE=/path/to/workspace      # must match desktop app
-//! export OPENHUMAN_MEMORY_EMBED_ENDPOINT=http://localhost:11434
-//! export OPENHUMAN_MEMORY_EMBED_MODEL=nomic-embed-text
-//! export OPENHUMAN_MEMORY_EXTRACT_ENDPOINT=http://localhost:11434
-//! export OPENHUMAN_MEMORY_EXTRACT_MODEL=qwen2.5:0.5b
-//! export OPENHUMAN_MEMORY_SUMMARISE_ENDPOINT=http://localhost:11434
-//! export OPENHUMAN_MEMORY_SUMMARISE_MODEL=llama3.1:8b
-//! export RUST_LOG=info,openhuman_core::openhuman::composio::providers::slack=debug,openhuman_core::openhuman::memory=debug
+//! export BENITO_WORKSPACE=/path/to/workspace      # must match desktop app
+//! export BENITO_MEMORY_EMBED_ENDPOINT=http://localhost:11434
+//! export BENITO_MEMORY_EMBED_MODEL=nomic-embed-text
+//! export BENITO_MEMORY_EXTRACT_ENDPOINT=http://localhost:11434
+//! export BENITO_MEMORY_EXTRACT_MODEL=qwen2.5:0.5b
+//! export BENITO_MEMORY_SUMMARISE_ENDPOINT=http://localhost:11434
+//! export BENITO_MEMORY_SUMMARISE_MODEL=llama3.1:8b
+//! export RUST_LOG=info,benito_core::benito::composio::providers::slack=debug,benito_core::benito::memory=debug
 //!
 //! cargo run --bin slack-backfill                              # all active slack connections
 //! cargo run --bin slack-backfill -- --connection conn_abc     # one specific connection
@@ -39,19 +39,19 @@ use std::time::Instant;
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 
-use openhuman_core::openhuman::composio::client::{
+use benito_core::benito::composio::client::{
     create_composio_client, direct_execute, direct_list_connections, ComposioClientKind,
 };
-use openhuman_core::openhuman::composio::providers::registry::{
+use benito_core::benito::composio::providers::registry::{
     get_provider, init_default_providers,
 };
-use openhuman_core::openhuman::composio::providers::slack::run_backfill_via_search;
-use openhuman_core::openhuman::composio::providers::{ProviderContext, SyncReason};
-use openhuman_core::openhuman::composio::types::{
+use benito_core::benito::composio::providers::slack::run_backfill_via_search;
+use benito_core::benito::composio::providers::{ProviderContext, SyncReason};
+use benito_core::benito::composio::types::{
     ComposioConnectionsResponse, ComposioExecuteResponse,
 };
-use openhuman_core::openhuman::config::Config;
-use openhuman_core::openhuman::memory;
+use benito_core::benito::config::Config;
+use benito_core::benito::memory;
 
 /// Dispatch a Composio action through the live `ComposioClientKind`.
 /// Centralises the backend-vs-direct branch so the per-call sites in
@@ -116,7 +116,7 @@ struct Cli {
     use_search: bool,
 
     /// Backfill window in days when `--use-search` is set. Defaults to
-    /// 30 unless `OPENHUMAN_SLACK_BACKFILL_DAYS` overrides.
+    /// 30 unless `BENITO_SLACK_BACKFILL_DAYS` overrides.
     #[arg(long = "days", default_value_t = 30)]
     days: i64,
 
@@ -158,7 +158,7 @@ async fn main() -> Result<()> {
     // composio-side providers, including SlackProvider). Without this,
     // channel-level warn logs from `process_channel` are silent and
     // backfill failures look like silent zeros. Filter respects
-    // `RUST_LOG` (e.g. `RUST_LOG=info,openhuman_core=debug`).
+    // `RUST_LOG` (e.g. `RUST_LOG=info,benito_core=debug`).
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -211,8 +211,8 @@ async fn main() -> Result<()> {
 
     if cli.seal_probe {
         use chrono::{Duration, Utc};
-        use openhuman_core::openhuman::memory::tree::canonicalize::chat::{ChatBatch, ChatMessage};
-        use openhuman_core::openhuman::memory::tree::ingest::ingest_chat;
+        use benito_core::benito::memory::tree::canonicalize::chat::{ChatBatch, ChatMessage};
+        use benito_core::benito::memory::tree::ingest::ingest_chat;
 
         let connection_id = cli.connection_id.clone().ok_or_else(|| {
             anyhow::anyhow!(

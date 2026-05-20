@@ -1,4 +1,4 @@
-//! Direct chat probe — exercise the full orchestrator harness end-to-end
+﻿//! Direct chat probe — exercise the full orchestrator harness end-to-end
 //! with the live user config, run a single turn, and print whether the
 //! harness actually emitted tool calls.
 //!
@@ -20,8 +20,8 @@
 //! # Drive a real orchestrator turn — needs BACKEND_URL set so the
 //! # integrations client can fetch the user's Connected Integrations.
 //! BACKEND_URL=https://staging-api.tinyhumans.ai \
-//!   OPENHUMAN_APP_ENV=staging \
-//!   RUST_LOG=info,openhuman_core::openhuman::agent=debug,openhuman_core::openhuman::inference=debug \
+//!   BENITO_APP_ENV=staging \
+//!   RUST_LOG=info,benito_core::benito::agent=debug,benito_core::benito::inference=debug \
 //!   cargo run --bin inference-probe -- \
 //!     --mode harness --prompt "hey list my top 5 emails"
 //!
@@ -30,11 +30,11 @@
 //! ```
 use anyhow::{Context, Result};
 use clap::Parser;
-use openhuman_core::openhuman::agent::Agent;
-use openhuman_core::openhuman::config::Config;
-use openhuman_core::openhuman::inference::provider::create_chat_provider;
-use openhuman_core::openhuman::inference::provider::traits::{ChatMessage, ChatRequest};
-use openhuman_core::openhuman::tools::traits::ToolSpec;
+use benito_core::benito::agent::Agent;
+use benito_core::benito::config::Config;
+use benito_core::benito::inference::provider::create_chat_provider;
+use benito_core::benito::inference::provider::traits::{ChatMessage, ChatRequest};
+use benito_core::benito::tools::traits::ToolSpec;
 use serde_json::json;
 
 #[derive(Parser, Debug)]

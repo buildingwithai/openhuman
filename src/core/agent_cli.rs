@@ -1,4 +1,4 @@
-//! `openhuman agent` — developer CLI for inspecting agent definitions and
+﻿//! `Benito agent` — developer CLI for inspecting agent definitions and
 //! the system prompts the context engine produces for them.
 //!
 //! This is intentionally scoped to *debugging*: no execution, no provider
@@ -6,10 +6,10 @@
 //! agent definitions / tool registry and printing something.
 //!
 //! Usage:
-//!   openhuman agent dump-prompt --agent <id> [--toolkit <slug>] [--workspace <path>] [--json] [--with-tools] [-v]
+//!   Benito agent dump-prompt --agent <id> [--toolkit <slug>] [--workspace <path>] [--json] [--with-tools] [-v]
 //!     (--toolkit is REQUIRED when --agent is `integrations_agent`.)
-//!   openhuman agent dump-all --out <dir> [--workspace <path>] [--model <name>] [-v]
-//!   openhuman agent list [--json] [-v]
+//!   Benito agent dump-all --out <dir> [--workspace <path>] [--model <name>] [-v]
+//!   Benito agent list [--json] [-v]
 //!
 //! `dump-prompt` is the main tool: it renders the exact system prompt the
 //! context engine would hand to the LLM when that agent is spawned. The
@@ -23,12 +23,12 @@
 use anyhow::{anyhow, Result};
 use std::path::PathBuf;
 
-use crate::openhuman::agent::debug::{
+use crate::benito::agent::debug::{
     dump_agent_prompt, dump_all_agent_prompts, write_prompt_dumps, DumpPromptOptions, DumpedPrompt,
 };
-use crate::openhuman::agent::harness::definition::AgentDefinitionRegistry;
+use crate::benito::agent::harness::definition::AgentDefinitionRegistry;
 
-/// Entry point for `openhuman agent <subcommand>`.
+/// Entry point for `Benito agent <subcommand>`.
 pub fn run_agent_command(args: &[String]) -> Result<()> {
     if args.is_empty() || is_help(&args[0]) {
         print_agent_help();
@@ -40,7 +40,7 @@ pub fn run_agent_command(args: &[String]) -> Result<()> {
         "dump-all" => run_dump_all(&args[1..]),
         "list" => run_list(&args[1..]),
         other => Err(anyhow!(
-            "unknown agent subcommand '{other}'. Run `openhuman agent --help`."
+            "unknown agent subcommand '{other}'. Run `Benito agent --help`."
         )),
     }
 }
@@ -91,7 +91,7 @@ fn parse_dump_all_flags(args: &[String]) -> Result<DumpAllFlags> {
                 i += 1;
             }
             "-h" | "--help" => {
-                println!("Usage: openhuman agent dump-all --out <dir> [--workspace <path>] [--model <name>] [-v]");
+                println!("Usage: Benito agent dump-all --out <dir> [--workspace <path>] [--model <name>] [-v]");
                 println!();
                 println!("Render every registered agent's turn-1 system prompt into <dir>.");
                 println!("`integrations_agent` is expanded into one file per currently-connected");
@@ -272,7 +272,7 @@ fn run_dump_prompt(args: &[String]) -> Result<()> {
 }
 
 fn print_human(dumped: &DumpedPrompt, with_tools: bool) {
-    // Banner on stderr so `openhuman agent dump-prompt ... > file.md` stays
+    // Banner on stderr so `Benito agent dump-prompt ... > file.md` stays
     // clean — stdout is the prompt, stderr is the metadata. This matches
     // the pattern already used by `run_call_command` / `run_server_command`
     // in `core/cli.rs` (banner to stderr, JSON result to stdout).
@@ -385,7 +385,7 @@ fn run_list(args: &[String]) -> Result<()> {
                 i += 1;
             }
             "-h" | "--help" => {
-                println!("Usage: openhuman agent list [--workspace <path>] [--json] [-v]");
+                println!("Usage: Benito agent list [--workspace <path>] [--json] [-v]");
                 println!();
                 println!("  List every built-in agent plus any custom `<workspace>/agents/*.toml` overrides.");
                 return Ok(());
@@ -459,21 +459,21 @@ fn run_list(args: &[String]) -> Result<()> {
 // ---------------------------------------------------------------------------
 
 fn print_agent_help() {
-    println!("openhuman agent — inspect agents and the prompts they receive");
+    println!("Benito agent — inspect agents and the prompts they receive");
     println!();
     println!("Usage:");
-    println!("  openhuman agent list [--workspace <path>] [--json]");
-    println!("  openhuman agent dump-prompt --agent <id> [--workspace <path>] [--model <name>] [--with-tools] [--json] [-v]");
-    println!("  openhuman agent dump-all --out <dir> [--workspace <path>] [--model <name>] [-v]");
+    println!("  Benito agent list [--workspace <path>] [--json]");
+    println!("  Benito agent dump-prompt --agent <id> [--workspace <path>] [--model <name>] [--with-tools] [--json] [-v]");
+    println!("  Benito agent dump-all --out <dir> [--workspace <path>] [--model <name>] [-v]");
     println!();
-    println!("Run `openhuman agent <subcommand> --help` for details.");
+    println!("Run `Benito agent <subcommand> --help` for details.");
 }
 
 fn print_dump_prompt_help() {
-    println!("openhuman agent dump-prompt — render the exact system prompt an agent receives");
+    println!("Benito agent dump-prompt — render the exact system prompt an agent receives");
     println!();
     println!("Usage:");
-    println!("  openhuman agent dump-prompt --agent <id> [options]");
+    println!("  Benito agent dump-prompt --agent <id> [options]");
     println!();
     println!("Required:");
     println!("  --agent, -a <id>     Target agent id — any built-in or workspace-custom id");
@@ -485,7 +485,7 @@ fn print_dump_prompt_help() {
     println!("                       `notion`). Must match a currently-connected integration —");
     println!("                       run `composio list_connection` to see the active slugs.");
     println!("  --workspace, -w <p>  Override the workspace directory (defaults to");
-    println!("                       Config::workspace_dir / ~/.openhuman/workspace).");
+    println!("                       Config::workspace_dir / ~/.Benito/workspace).");
     println!("  --model, -m <name>   Override the resolved model name (affects only the");
     println!("                       `## Runtime` section).");
     println!("  --with-tools         Also print the full list of tool names the agent sees.");
@@ -494,11 +494,11 @@ fn print_dump_prompt_help() {
     println!();
     println!("Examples:");
     println!("  # Orchestrator prompt, JSON for scripting.");
-    println!("  openhuman agent dump-prompt --agent orchestrator --json");
+    println!("  Benito agent dump-prompt --agent orchestrator --json");
     println!();
     println!("  # integrations_agent bound to the user's gmail connection.");
     println!(
-        "  openhuman agent dump-prompt --agent integrations_agent --toolkit gmail --with-tools"
+        "  Benito agent dump-prompt --agent integrations_agent --toolkit gmail --with-tools"
     );
 }
 

@@ -1,9 +1,9 @@
-//! The entry point for the OpenHuman core application.
+﻿//! The entry point for the Benito core application.
 //!
 //! This file is responsible for:
 //! - Initializing error tracking with Sentry.
 //! - Setting up secret scrubbing for outgoing error reports.
-//! - Dispatching command-line arguments to the core logic in `openhuman_core`.
+//! - Dispatching command-line arguments to the core logic in `benito_core`.
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -18,28 +18,28 @@ fn main() {
     // file is visible to the Sentry client at startup. `dotenvy::dotenv()` is
     // a no-op for variables already present in the process environment, and
     // the CLI dispatcher later calls `load_dotenv_for_cli` which honors
-    // `OPENHUMAN_DOTENV_PATH`; this early call handles the common default
+    // `BENITO_DOTENV_PATH`; this early call handles the common default
     // case (repo-local `.env`) so startup-time consumers (Sentry, config
     // overrides) see the same values as runtime RPC handlers.
     let _ = dotenvy::dotenv();
 
     // Initialize Sentry as the very first operation so the guard outlives everything.
     // Resolves the core Sentry DSN by checking, in order:
-    //   1. `OPENHUMAN_CORE_SENTRY_DSN` at runtime (preferred, namespaced name)
-    //   2. `OPENHUMAN_SENTRY_DSN` at runtime (legacy unprefixed name — kept
+    //   1. `benito_core_SENTRY_DSN` at runtime (preferred, namespaced name)
+    //   2. `BENITO_SENTRY_DSN` at runtime (legacy unprefixed name — kept
     //      so existing CI vars and contributor `.env` files keep working until
     //      the GH org-level variable can be renamed)
     //   3. Each of the same names baked at compile time via `option_env!`
     // If none resolve to a non-empty value, `sentry::init` returns a no-op guard.
     let _sentry_guard = sentry::init(sentry::ClientOptions {
-        dsn: std::env::var("OPENHUMAN_CORE_SENTRY_DSN")
+        dsn: std::env::var("benito_core_SENTRY_DSN")
             .ok()
             .filter(|s| !s.is_empty())
-            .or_else(|| std::env::var("OPENHUMAN_SENTRY_DSN").ok())
+            .or_else(|| std::env::var("BENITO_SENTRY_DSN").ok())
             .filter(|s| !s.is_empty())
-            .or_else(|| option_env!("OPENHUMAN_CORE_SENTRY_DSN").map(|s| s.to_string()))
+            .or_else(|| option_env!("benito_core_SENTRY_DSN").map(|s| s.to_string()))
             .filter(|s| !s.is_empty())
-            .or_else(|| option_env!("OPENHUMAN_SENTRY_DSN").map(|s| s.to_string()))
+            .or_else(|| option_env!("BENITO_SENTRY_DSN").map(|s| s.to_string()))
             .filter(|s| !s.is_empty())
             .and_then(|s| s.parse().ok()),
         release: Some(std::borrow::Cow::Owned(build_release_tag())),
@@ -51,19 +51,19 @@ fn main() {
             // layer already retries 429/408/502/503/504 with backoff +
             // fallback, and the aggregate "all providers exhausted" event
             // still fires for genuine outages. Per-attempt reports flood
-            // Sentry — see OPENHUMAN-TAURI-2E (~1393 events), -84 (~1050),
+            // Sentry — see Benito-TAURI-2E (~1393 events), -84 (~1050),
             // -T (~871). The primary fix lives in
-            // `openhuman::inference::provider::ops::should_report_provider_http_failure`
+            // `benito::inference::provider::ops::should_report_provider_http_failure`
             // (transient codes excluded). This filter catches any future call
             // site that bypasses it.
-            if openhuman_core::core::observability::is_transient_provider_http_failure(&event) {
+            if benito_core::core::observability::is_transient_provider_http_failure(&event) {
                 return None;
             }
             // Defense-in-depth for budget-exhausted 400s. Emit sites demote the
             // known backend responses before they hit Sentry; this catches any
             // future non_2xx/status=400 event that carries the same tight body
             // phrases.
-            if openhuman_core::core::observability::is_budget_event(&event) {
+            if benito_core::core::observability::is_budget_event(&event) {
                 return None;
             }
             // Defense-in-depth: drop max-tool-iterations cap events that
@@ -73,27 +73,27 @@ fn main() {
             // `channels::providers::web::run_chat_task`. The cap is a
             // deterministic agent-state outcome surfaced to the user via
             // the chat-rendered "Error: …" message — Sentry is the wrong
-            // surface for it (OPENHUMAN-TAURI-99 / -98).
-            if openhuman_core::core::observability::is_max_iterations_event(&event) {
+            // surface for it (Benito-TAURI-99 / -98).
+            if benito_core::core::observability::is_max_iterations_event(&event) {
                 return None;
             }
-            if openhuman_core::core::observability::is_transient_backend_api_failure(&event)
-                || openhuman_core::core::observability::is_transient_integrations_failure(&event)
-                || openhuman_core::core::observability::is_updater_transient_event(&event)
+            if benito_core::core::observability::is_transient_backend_api_failure(&event)
+                || benito_core::core::observability::is_transient_integrations_failure(&event)
+                || benito_core::core::observability::is_updater_transient_event(&event)
             {
                 return None;
             }
             // Drop 401 "Session expired. Please log in again." bodies surfaced
             // by llm_provider / backend_api, plus pre-flight "no session token
             // stored" guards from the rpc dispatcher. Primary suppression
-            // lives at the call sites (`openhuman::inference::provider::ops::api_error`
+            // lives at the call sites (`benito::inference::provider::ops::api_error`
             // publishes a SessionExpired event_bus signal and short-circuits;
             // the rpc dispatcher's `is_session_expired_error` skip-path in
             // `src/core/jsonrpc.rs` redirects to a tracing::info). This
             // filter catches any future call site that re-emits the same
-            // shape — keeping OPENHUMAN-TAURI-25 / -1Q / -27 / -1G off
+            // shape — keeping Benito-TAURI-25 / -1Q / -27 / -1G off
             // Sentry permanently (~185 events/day combined).
-            if openhuman_core::core::observability::is_session_expired_event(&event) {
+            if benito_core::core::observability::is_session_expired_event(&event) {
                 // Metadata-only log shape — `event.message` carries the raw
                 // backend response body (often a JSON envelope with the
                 // session JWT context attached) which CLAUDE.md forbids from
@@ -113,7 +113,7 @@ fn main() {
             // or IP — so this stays consistent with `send_default_pii: false`.
             // Empty/missing on early-startup events (cache populates after
             // the first `auth_get_me` RPC); that's expected.
-            event.user = openhuman_core::openhuman::app_state::peek_cached_current_user_identity()
+            event.user = benito_core::benito::app_state::peek_cached_current_user_identity()
                 .and_then(|identity| identity.id)
                 .map(|id| sentry::User {
                     id: Some(id),
@@ -135,7 +135,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
     // Delegate to the core library to handle the command.
-    if let Err(err) = openhuman_core::run_core_from_args(&args) {
+    if let Err(err) = benito_core::run_core_from_args(&args) {
         eprintln!("{err}");
         std::process::exit(1);
     }
@@ -145,7 +145,7 @@ fn main() {
 // Release / environment resolution for Sentry
 // ---------------------------------------------------------------------------
 
-/// Canonical release tag: `openhuman@<version>[+<short_sha>]`.
+/// Canonical release tag: `Benito@<version>[+<short_sha>]`.
 ///
 /// Matches the string the frontend reports (`SENTRY_RELEASE` in
 /// `app/src/utils/config.ts`) so events from every surface group under
@@ -153,22 +153,22 @@ fn main() {
 /// source-map upload.
 fn build_release_tag() -> String {
     let version = env!("CARGO_PKG_VERSION");
-    let sha = option_env!("OPENHUMAN_BUILD_SHA").unwrap_or("").trim();
+    let sha = option_env!("BENITO_BUILD_SHA").unwrap_or("").trim();
     let sha_short: String = sha.chars().take(12).collect();
     if sha_short.is_empty() {
-        format!("openhuman@{version}")
+        format!("Benito@{version}")
     } else {
-        format!("openhuman@{version}+{sha_short}")
+        format!("Benito@{version}+{sha_short}")
     }
 }
 
 /// Resolve the deployment environment reported to Sentry.
 ///
-/// Honors `OPENHUMAN_APP_ENV` at runtime (`staging` / `production`) so the
+/// Honors `BENITO_APP_ENV` at runtime (`staging` / `production`) so the
 /// same binary could in principle be redeployed between environments; falls
 /// back to debug/release detection when unset.
 fn resolve_environment() -> String {
-    if let Ok(value) = std::env::var("OPENHUMAN_APP_ENV") {
+    if let Ok(value) = std::env::var("BENITO_APP_ENV") {
         let trimmed = value.trim().to_ascii_lowercase();
         if !trimmed.is_empty() {
             return trimmed;

@@ -1,4 +1,4 @@
-//! Centralised error reporting for the core, plus a Sentry
+﻿//! Centralised error reporting for the core, plus a Sentry
 //! `before_send` filters that drop deterministic provider noise:
 //! per-attempt transient-upstream failures, budget-exhausted user-state,
 //! and transient updater failures.
@@ -31,7 +31,7 @@ pub type Tag<'a> = (&'a str, &'a str);
 /// - **504** Gateway Timeout
 ///
 /// Single source of truth for both the call-site classifier
-/// (`openhuman::inference::provider::ops::should_report_provider_http_failure`) and the
+/// (`benito::inference::provider::ops::should_report_provider_http_failure`) and the
 /// `before_send` filter (`is_transient_provider_http_failure`). Update here
 /// and both sites pick it up — keeps the two layers from drifting.
 pub const TRANSIENT_PROVIDER_HTTP_STATUSES: &[u16] = &[408, 429, 502, 503, 504, 520];
@@ -65,7 +65,7 @@ const UPDATER_TRANSIENT_MESSAGE_PHRASES: &[&str] = &[
     "failed to check for updates: error sending request",
     "github api error: 403",
     "github api error: 5",
-    "error sending request for url (https://github.com/tinyhumansai/openhuman/releases/",
+    "error sending request for url (https://github.com/tinyhumansai/Benito/releases/",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,14 +83,14 @@ pub enum ExpectedErrorKind {
     /// actionable error and Sentry has no remediation path — see
     /// [`is_provider_user_state_message`] for the exact body shapes.
     ///
-    /// Drops OPENHUMAN-TAURI-3R / -3S / -33 / -34 / -97 (~54 events): the
+    /// Drops Benito-TAURI-3R / -3S / -33 / -34 / -97 (~54 events): the
     /// composio backend wraps several of these as HTTP 500 with the real
     /// 4xx body embedded, which would otherwise escape the
     /// [`is_backend_user_error_message`] 4xx-only matcher.
     ProviderUserState,
     /// A user-configured custom cloud provider (`custom_openai` → DeepSeek
     /// / OpenRouter / Moonshot / …) rejected the request because of the
-    /// user's **model / parameter configuration**: an OpenHuman abstract
+    /// user's **model / parameter configuration**: an Benito abstract
     /// tier alias leaked to a provider that only speaks its native ids
     /// (#2079), an unknown / stale model pin (#2202), or a model-specific
     /// temperature constraint (#2076 — Moonshot Kimi K2). The provider
@@ -99,9 +99,9 @@ pub enum ExpectedErrorKind {
     /// error is raised again by `agent.run_single` /
     /// `web_channel.run_chat_task` under `domain=agent` / `web_channel`.
     /// Deterministic user-config state surfaced in the UI — Sentry has no
-    /// remediation path (OPENHUMAN-TAURI-WJ / -QW / -HB / -NH, ~273
+    /// remediation path (Benito-TAURI-WJ / -QW / -HB / -NH, ~273
     /// events). See
-    /// [`crate::openhuman::inference::provider::is_provider_config_rejection_message`]
+    /// [`crate::benito::inference::provider::is_provider_config_rejection_message`]
     /// for the polarity contract and exact body shapes.
     ProviderConfigRejection,
     LocalAiCapabilityUnavailable,
@@ -126,7 +126,7 @@ pub enum ExpectedErrorKind {
     ///   demoted breadcrumb can stay sparse (debug level, metadata-only
     ///   fields) instead of warn-level with the full body included.
     ///
-    /// Drops OPENHUMAN-TAURI-R5 (~2.5k events) and OPENHUMAN-TAURI-R6
+    /// Drops Benito-TAURI-R5 (~2.5k events) and Benito-TAURI-R6
     /// (~2.5k events) — both are the same `127.0.0.1:18474` connect-refused
     /// shape, one at the `integrations.get` emit site and one re-wrapped by
     /// `rpc.invoke_method`. See [`is_loopback_unavailable`] for the exact
@@ -162,7 +162,7 @@ pub fn expected_error_kind(message: &str) -> Option<ExpectedErrorKind> {
     // Check `is_provider_user_state_message` BEFORE `is_backend_user_error_message`:
     // composio's "Toolkit X is not enabled" lands as a 4xx that both would
     // match, and the more specific `ProviderUserState` bucket is the right
-    // home — see the variant doc-comment for OPENHUMAN-TAURI-… coverage.
+    // home — see the variant doc-comment for Benito-TAURI-… coverage.
     if is_provider_user_state_message(&lower) {
         return Some(ExpectedErrorKind::ProviderUserState);
     }
@@ -171,17 +171,17 @@ pub fn expected_error_kind(message: &str) -> Option<ExpectedErrorKind> {
     }
     // Provider config-rejection (unknown model / abstract tier leaked to a
     // custom provider / model-specific temperature). Body-shape based and
-    // intrinsically scoped to third-party providers — the OpenHuman
+    // intrinsically scoped to third-party providers — the Benito
     // backend never emits these phrases. See the predicate's polarity
-    // contract. Drops OPENHUMAN-TAURI-WJ / -QW / -HB / -NH re-reports
+    // contract. Drops Benito-TAURI-WJ / -QW / -HB / -NH re-reports
     // (#2079 / #2076 / #2202).
-    if crate::openhuman::inference::provider::is_provider_config_rejection_message(message) {
+    if crate::benito::inference::provider::is_provider_config_rejection_message(message) {
         return Some(ExpectedErrorKind::ProviderConfigRejection);
     }
     if is_local_ai_capability_unavailable_message(&lower) {
         return Some(ExpectedErrorKind::LocalAiCapabilityUnavailable);
     }
-    if crate::openhuman::inference::provider::is_budget_exhausted_message(message) {
+    if crate::benito::inference::provider::is_budget_exhausted_message(message) {
         return Some(ExpectedErrorKind::BudgetExhausted);
     }
     if is_session_expired_message(message) {
@@ -201,21 +201,21 @@ pub fn expected_error_kind(message: &str) -> Option<ExpectedErrorKind> {
 /// silence BYO-key configuration errors at the agent layer, where they
 /// *are* actionable and should reach Sentry as errors.
 ///
-/// The canonical OpenHuman session-expired wire shapes:
+/// The canonical Benito session-expired wire shapes:
 ///
-/// - `"OpenHuman API error (401 Unauthorized): {…\"Session expired. Please
+/// - `"Benito API error (401 Unauthorized): {…\"Session expired. Please
 ///   log in again.\"…}"` — emitted by `providers::ops::api_error` from the
-///   OpenHuman backend and re-raised through `agent::run_single` /
-///   `channels::providers::web::run_chat_task` (OPENHUMAN-TAURI-26). The
-///   `"session expired"` substring anchors the match to the OpenHuman
+///   Benito backend and re-raised through `agent::run_single` /
+///   `channels::providers::web::run_chat_task` (Benito-TAURI-26). The
+///   `"session expired"` substring anchors the match to the Benito
 ///   backend's session-renewal body, not the bare numeric status.
 /// - `"SESSION_EXPIRED: backend session not active — sign in to resume LLM work"`
 ///   — the `scheduler_gate::is_signed_out` sentinel from
-///   `providers::openhuman_backend::resolve_bearer`.
+///   `providers::BENITO_backend::resolve_bearer`.
 /// - `"no backend session token; run auth_store_session first"` and
 ///   `"session JWT required"` — local pre-flight guards that fire when the
 ///   stored profile is empty (`#1465`-ish onboarding spam) or has been
-///   cleared by a previous 401 cycle. Both shapes are OpenHuman-specific.
+///   cleared by a previous 401 cycle. Both shapes are Benito-specific.
 ///
 /// At the JSON-RPC dispatch boundary the looser classifier in
 /// `crate::core::jsonrpc::is_session_expired_error` keeps its existing
@@ -223,7 +223,7 @@ pub fn expected_error_kind(message: &str) -> Option<ExpectedErrorKind> {
 /// publish still fires for every 401. Adding the demote here therefore does
 /// **not** silence the auto-cleanup teardown — it only stops the duplicate
 /// per-attempt error event that escaped via `report_error_or_expected` from
-/// the agent / web-channel layers (OPENHUMAN-TAURI-26).
+/// the agent / web-channel layers (Benito-TAURI-26).
 pub fn is_session_expired_message(msg: &str) -> bool {
     let lower = msg.to_ascii_lowercase();
     lower.contains("session expired")
@@ -253,8 +253,8 @@ pub fn is_session_expired_message(msg: &str) -> bool {
 ///    swallowing higher-level wrappers that merely mention "connection
 ///    refused" in prose.
 ///
-/// Drops OPENHUMAN-TAURI-R5 (~2.5k events, `integrations.get` emit site)
-/// and OPENHUMAN-TAURI-R6 (~2.5k events, the `rpc.invoke_method` re-wrap of
+/// Drops Benito-TAURI-R5 (~2.5k events, `integrations.get` emit site)
+/// and Benito-TAURI-R6 (~2.5k events, the `rpc.invoke_method` re-wrap of
 /// the same trace). Both share `trace_id=6ebf5b62748d5144e541e2cddeabbbd0`
 /// and the canonical body shape:
 ///
@@ -286,7 +286,7 @@ fn is_loopback_unavailable(lower: &str) -> bool {
 /// can't reach the server at all.
 ///
 /// These are user-environment problems — VPN drop, captive portal, ISP-level
-/// block (OPENHUMAN-TAURI-32: user in RU couldn't reach `api.tinyhumans.ai`),
+/// block (Benito-TAURI-32: user in RU couldn't reach `api.tinyhumans.ai`),
 /// firewall — that no amount of retry / fallback on our side can resolve.
 /// Sentry has no signal to act on (no status, no trace, no payload), so each
 /// occurrence is pure noise. Classify them as expected so the report site
@@ -315,13 +315,13 @@ fn is_network_unreachable_message(lower: &str) -> bool {
 /// `before_send` filter drops the per-attempt provider events that carry
 /// `domain=llm_provider`. But the same error is *also* returned via
 /// `Result::Err` and re-reported by callers that wrap the provider — e.g.
-/// `agent.run_single` (OPENHUMAN-TAURI-5Z), `web_channel.run_chat_task`,
+/// `agent.run_single` (Benito-TAURI-5Z), `web_channel.run_chat_task`,
 /// scheduler tick handlers — under a different `domain` tag, escaping the
 /// provider-scoped filter and producing one Sentry event per failed turn.
 ///
 /// The canonical wire format from `providers::ops::api_error` is:
 /// `"<provider> API error (<status>): <sanitized>"` — e.g.
-/// `"OpenHuman API error (504 Gateway Timeout): error code: 504"`. Pin the
+/// `"Benito API error (504 Gateway Timeout): error code: 504"`. Pin the
 /// match to that exact `"api error (<status>"` prefix so an unrelated message
 /// that merely mentions "504" (a log line, a doc URL) is not silenced.
 ///
@@ -329,7 +329,7 @@ fn is_network_unreachable_message(lower: &str) -> bool {
 /// `WsError::Http(response)` Display, which renders as `"HTTP error: <status>"`
 /// (and which `socket::ws_loop::run_connection` wraps as
 /// `"WebSocket connect: HTTP error: 502 Bad Gateway"`). Per
-/// OPENHUMAN-TAURI-5P (~110 events) and -EZ (~51 events), backend
+/// Benito-TAURI-5P (~110 events) and -EZ (~51 events), backend
 /// staging/production load balancers emit HTTP 502/504 during the WebSocket
 /// upgrade handshake; tungstenite surfaces those as `WsError::Http` and the
 /// socket reconnect loop already handles them via exponential backoff. Each
@@ -358,11 +358,11 @@ fn is_transient_upstream_http_message(lower: &str) -> bool {
 /// bugs Sentry can act on.
 ///
 /// The canonical wire format from
-/// [`crate::openhuman::integrations::client::IntegrationClient::post`] / `get`
-/// and [`crate::openhuman::composio::client::ComposioClient`] is:
+/// [`crate::benito::integrations::client::IntegrationClient::post`] / `get`
+/// and [`crate::benito::composio::client::ComposioClient`] is:
 /// `"Backend returned <status> <reason> for <METHOD> <url>: <detail>"` — e.g.
 /// `"Backend returned 400 Bad Request for POST https://api.tinyhumans.ai/agent-integrations/composio/authorize: Composio authorization failed: 400 …"`
-/// (OPENHUMAN-TAURI-BC: user submitted SharePoint authorize without filling in
+/// (Benito-TAURI-BC: user submitted SharePoint authorize without filling in
 /// the required Tenant Name field). The backend correctly returned a 4xx; the
 /// UI already surfaces the structured error to the user via toast — Sentry has
 /// no remediation path because the request was malformed *by the user's
@@ -380,7 +380,7 @@ fn is_transient_upstream_http_message(lower: &str) -> bool {
 /// 5xx is intentionally **not** classified here — server-side failures from
 /// our backend are real bugs that should reach Sentry. The transient
 /// 502/503/504 deduplication is handled by the threshold logic in callers
-/// (see e.g. `openhuman::socket::ws_loop::FAIL_ESCALATE_THRESHOLD`).
+/// (see e.g. `benito::socket::ws_loop::FAIL_ESCALATE_THRESHOLD`).
 fn is_backend_user_error_message(lower: &str) -> bool {
     let Some(rest) = lower.split_once("backend returned ").map(|(_, r)| r) else {
         return false;
@@ -400,7 +400,7 @@ fn is_backend_user_error_message(lower: &str) -> bool {
 /// Unlike [`is_backend_user_error_message`], this classifier is **body-text
 /// shape-based** rather than HTTP-status-based, so it catches the cases
 /// where the composio backend wraps a Composio API 4xx as a 500 with the
-/// real validation message embedded in the body (OPENHUMAN-TAURI-3R / -3S
+/// real validation message embedded in the body (Benito-TAURI-3R / -3S
 /// / -97 — `"Backend returned 500 … Trigger type GITHUB_PUSH_EVENT not
 /// found"`, `"Backend returned 500 … Missing required fields: Your
 /// Subdomain"`). These would otherwise escape the 4xx-only matcher and
@@ -408,7 +408,7 @@ fn is_backend_user_error_message(lower: &str) -> bool {
 /// is user-state (the trigger slug isn't in composio's registry, the
 /// toolkit wasn't enabled by the user, the form field was left blank, …).
 ///
-/// Also handles the gmail-sync 403 (OPENHUMAN-TAURI-33) where the
+/// Also handles the gmail-sync 403 (Benito-TAURI-33) where the
 /// composio sync loop surfaces the upstream Google OAuth scopes error as
 /// `"HTTP 403: Request had insufficient authentication scopes."`. The
 /// remediation is "user re-authorizes with the right scope" — nothing
@@ -418,7 +418,7 @@ fn is_backend_user_error_message(lower: &str) -> bool {
 /// classifier survives caller wrapping (rpc.invoke_method, agent.run_single,
 /// `[composio:gmail]` prefixes, anyhow chains, …).
 fn is_provider_user_state_message(lower: &str) -> bool {
-    // OPENHUMAN-TAURI-3R / -3S: composio enable_trigger when the slug isn't
+    // Benito-TAURI-3R / -3S: composio enable_trigger when the slug isn't
     // in the trigger registry (e.g. user clicked a stale UI option).
     // Backend returns 500 with `"Trigger type GITHUB_PUSH_EVENT not found"`.
     // Also covers the alternate phrasing `"Cannot enable trigger … not found"`.
@@ -428,14 +428,14 @@ fn is_provider_user_state_message(lower: &str) -> bool {
         return true;
     }
 
-    // OPENHUMAN-TAURI-34: composio rejected a tool call because the user
+    // Benito-TAURI-34: composio rejected a tool call because the user
     // hasn't enabled the toolkit yet. Wire shape:
     // `Backend returned 400 … Toolkit "get" is not enabled`.
     if lower.contains("toolkit ") && lower.contains("is not enabled") {
         return true;
     }
 
-    // OPENHUMAN-TAURI-XX: custom_openai upstream rejected the request with
+    // Benito-TAURI-XX: custom_openai upstream rejected the request with
     // its own 400. Wire shape produced by
     // `inference/provider/compatible.rs::is_custom_openai_upstream_bad_request_http_400`:
     //
@@ -454,7 +454,7 @@ fn is_provider_user_state_message(lower: &str) -> bool {
         return true;
     }
 
-    // OPENHUMAN-TAURI-97: composio authorize with a blank required field —
+    // Benito-TAURI-97: composio authorize with a blank required field —
     // SharePoint Subdomain, WhatsApp WABA ID, Tenant Name, etc.
     // Backend returns 500 with `"Missing required fields: …"` body.
     //
@@ -476,14 +476,14 @@ fn is_provider_user_state_message(lower: &str) -> bool {
         return true;
     }
 
-    // OPENHUMAN-TAURI-33: gmail sync hit an OAuth scope wall —
+    // Benito-TAURI-33: gmail sync hit an OAuth scope wall —
     // `HTTP 403: Request had insufficient authentication scopes.`
     // (or any sibling OAuth scope rejection from composio's toolkits).
     if lower.contains("insufficient authentication scopes") {
         return true;
     }
 
-    // OPENHUMAN-TAURI-S7: provider policy rejection on Kimi's coding
+    // Benito-TAURI-S7: provider policy rejection on Kimi's coding
     // endpoint when requests are not sent from an approved coding-agent
     // client. Canonical body contains `access_terminated_error` and:
     // "currently only available for Coding Agents ...".
@@ -498,7 +498,7 @@ fn is_provider_user_state_message(lower: &str) -> bool {
 
 /// Detect "<capability> is disabled / unavailable for this RAM tier" errors
 /// emitted by the local-AI service when the user's hardware tier doesn't
-/// support a capability (OPENHUMAN-TAURI-3B: vision asset download invoked
+/// support a capability (Benito-TAURI-3B: vision asset download invoked
 /// on a 0–4 GB tier). These are pure user-state conditions — the local-AI
 /// service surfaces them so the UI can prompt the user to switch tiers —
 /// and carry no remediable signal for Sentry.
@@ -540,7 +540,7 @@ pub fn report_error<E: Display + ?Sized>(
     // this, anyhow's default `to_string()` only emits the outermost context
     // and the underlying cause (e.g. a `toml::de::Error` with line/column) is
     // dropped — making the captured Sentry event undiagnosable. See
-    // OPENHUMAN-TAURI-B2 for an instance where this masked the real failure.
+    // Benito-TAURI-B2 for an instance where this masked the real failure.
     let message = format!("{err:#}");
     report_error_message(&message, domain, operation, extra);
 }
@@ -602,7 +602,7 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
             // isn't installed on this host. The error message itself is
             // the user-facing instruction ("Set PIPER_BIN or install
             // piper.") — Sentry has nothing to act on, since we can't
-            // install the binary for them. OPENHUMAN-TAURI-9N is the
+            // install the binary for them. Benito-TAURI-9N is the
             // canonical instance: `local_ai_tts` fails immediately
             // (elapsed_ms=1) on a Windows host without piper installed.
             tracing::info!(
@@ -616,7 +616,7 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
             // 4xx from the integrations / composio backend client —
             // user-input or auth-state failure that the backend already
             // surfaced to the user via the structured error toast.
-            // OPENHUMAN-TAURI-BC: SharePoint authorize 400 because the
+            // Benito-TAURI-BC: SharePoint authorize 400 because the
             // user didn't fill in the required Tenant Name field.
             tracing::warn!(
                 domain = domain,
@@ -628,10 +628,10 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
         ExpectedErrorKind::ProviderUserState => {
             // Third-party provider (composio, gmail OAuth, …) rejected the
             // request for a user-state reason: trigger slug missing from
-            // composio's registry (OPENHUMAN-TAURI-3R / -3S), toolkit not
-            // enabled (OPENHUMAN-TAURI-34), OAuth scopes missing
-            // (OPENHUMAN-TAURI-33), or a required form field was left blank
-            // (OPENHUMAN-TAURI-97). The UI already surfaces the actionable
+            // composio's registry (Benito-TAURI-3R / -3S), toolkit not
+            // enabled (Benito-TAURI-34), OAuth scopes missing
+            // (Benito-TAURI-33), or a required form field was left blank
+            // (Benito-TAURI-97). The UI already surfaces the actionable
             // error to the user — Sentry has no remediation path.
             tracing::info!(
                 domain = domain,
@@ -644,7 +644,7 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
         ExpectedErrorKind::ProviderConfigRejection => {
             // User-config state: a custom cloud provider rejected the
             // request because of the user's model / parameter setup — an
-            // OpenHuman abstract tier alias leaked to a provider that only
+            // Benito abstract tier alias leaked to a provider that only
             // speaks its native ids (#2079), an unknown / stale model pin
             // (#2202), or a model-specific temperature constraint (#2076,
             // Moonshot Kimi K2). The provider HTTP layer already demoted
@@ -652,7 +652,7 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
             // again by agent.run_single / web_channel.run_chat_task. The
             // UI surfaces an actionable "fix your model/provider settings"
             // error — Sentry has no remediation path
-            // (OPENHUMAN-TAURI-WJ / -QW / -HB / -NH).
+            // (Benito-TAURI-WJ / -QW / -HB / -NH).
             tracing::info!(
                 domain = domain,
                 operation = operation,
@@ -667,7 +667,7 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
             // because the user's RAM tier doesn't support it. The
             // error message itself is the user-facing remediation
             // ("Switch to the 4-8 GB tier or above to enable it.") —
-            // Sentry has nothing to act on. OPENHUMAN-TAURI-3B: 28
+            // Sentry has nothing to act on. Benito-TAURI-3B: 28
             // hits in 4 days from `local_ai_download_asset` on a
             // 0–4 GB tier requesting vision.
             tracing::info!(
@@ -679,10 +679,10 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
         }
         ExpectedErrorKind::BudgetExhausted => {
             // User-state condition: the backend reports the user is out of
-            // budget / credits / balance (HTTP 400 from the OpenHuman backend,
+            // budget / credits / balance (HTTP 400 from the Benito backend,
             // surfaced by `providers::is_budget_exhausted_message`). The UI
             // already surfaces this as an actionable toast — Sentry would
-            // turn each affected turn into noise (OPENHUMAN-TAURI-3M / -12 /
+            // turn each affected turn into noise (Benito-TAURI-3M / -12 /
             // -13). Demote to info so it still appears in breadcrumbs but
             // never spawns a Sentry error event.
             tracing::info!(
@@ -703,8 +703,8 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
             // upstream call site (agent.run_single, web_channel.run_chat_task)
             // adds noise without signal: every mid-conversation 401 would
             // emit one event before the cascade dampener kicks in
-            // (OPENHUMAN-TAURI-26, and the same upstream gap that
-            // OPENHUMAN-TAURI-1T's #1516 cascade fix dampened but did not
+            // (Benito-TAURI-26, and the same upstream gap that
+            // Benito-TAURI-1T's #1516 cascade fix dampened but did not
             // close). Demote to info so the breadcrumb survives for trace
             // correlation but Sentry sees no error event.
             tracing::info!(
@@ -717,7 +717,7 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
         ExpectedErrorKind::LoopbackUnavailable => {
             // In-process-core boot-window condition: a sibling component
             // tried to reach `127.0.0.1:<port>` before the embedded core's
-            // HTTP listener finished binding (OPENHUMAN-TAURI-R5 / -R6).
+            // HTTP listener finished binding (Benito-TAURI-R5 / -R6).
             // Self-resolves once startup completes. Demote at `debug!` —
             // lower than the `warn!` we use for NetworkUnreachable because
             // this isn't a user-environment problem; it's an internal
@@ -757,7 +757,7 @@ fn report_expected_message(kind: ExpectedErrorKind, message: &str, domain: &str,
 /// `sentry::capture_message` synchronously routes through the active hub
 /// and is deterministic, which keeps both production reporting and tests
 /// honest.
-pub const REPORT_ERROR_TRACING_TARGET: &str = "openhuman::observability::report_error";
+pub const REPORT_ERROR_TRACING_TARGET: &str = "benito::observability::report_error";
 
 pub(crate) fn report_error_message(
     message: &str,
@@ -796,7 +796,7 @@ pub(crate) fn report_error_message(
 /// that the reliable-provider layer already handles via retry + fallback.
 ///
 /// The primary suppression lives at the call site
-/// (`openhuman::inference::provider::ops::should_report_provider_http_failure`),
+/// (`benito::inference::provider::ops::should_report_provider_http_failure`),
 /// which short-circuits transient codes before `report_error` ever fires.
 /// This helper is intended for use inside the `sentry::ClientOptions`
 /// `before_send` hook as defense-in-depth — it catches any future call
@@ -825,7 +825,7 @@ pub fn is_transient_provider_http_failure(event: &sentry::protocol::Event<'_>) -
 
 /// Returns true when a Sentry event's message/exception text contains the
 /// canonical max-tool-iterations cap phrase (see
-/// `openhuman::agent::error::MAX_ITERATIONS_ERROR_PREFIX`).
+/// `benito::agent::error::MAX_ITERATIONS_ERROR_PREFIX`).
 ///
 /// Defense-in-depth filter for the Sentry `before_send` hook: the primary
 /// suppression lives at the call sites in `agent::harness::session::
@@ -834,7 +834,7 @@ pub fn is_transient_provider_http_failure(event: &sentry::protocol::Event<'_>) -
 /// `report_error` when this variant is detected. This filter catches any
 /// future call site that re-emits the message without going through those
 /// funnels — e.g. a new wrapper that calls `tracing::error!` directly with
-/// the typed error rendering — and keeps OPENHUMAN-TAURI-99 / -98
+/// the typed error rendering — and keeps Benito-TAURI-99 / -98
 /// permanently off Sentry without requiring touch-ups at each new site.
 ///
 /// Match strategy: scans `event.message` first (the path used by
@@ -848,18 +848,18 @@ pub fn is_max_iterations_event(event: &sentry::protocol::Event<'_>) -> bool {
     [direct, from_exception]
         .into_iter()
         .flatten()
-        .any(crate::openhuman::agent::error::is_max_iterations_error)
+        .any(crate::benito::agent::error::is_max_iterations_error)
 }
 
 /// Tag + body classifier for the `before_send` chain — drops Sentry events
-/// emitted at the OpenHuman backend / rpc layers for "401 Session
+/// emitted at the Benito backend / rpc layers for "401 Session
 /// expired" or the pre-flight "no session token stored" guards.
 ///
 /// Pairs with [`is_session_expired_message`] (which classifies the
 /// message body at the emit site via `report_error_or_expected`). This
 /// fn runs in `before_send` so it catches any future call site that
 /// re-emits the same shape without routing through the classifier —
-/// keeps OPENHUMAN-TAURI-25 / -1Q / -27 / -1G permanently off Sentry
+/// keeps Benito-TAURI-25 / -1Q / -27 / -1G permanently off Sentry
 /// (~185 events/day combined).
 ///
 /// Scope: only the three domains that surface session-expired today
@@ -993,13 +993,13 @@ pub fn is_transient_backend_api_failure(event: &sentry::protocol::Event<'_>) -> 
 /// gateway hiccups).
 ///
 /// Accepts both `domain="integrations"` (the shared
-/// [`crate::openhuman::integrations::IntegrationClient`] HTTP wrapper that
+/// [`crate::benito::integrations::IntegrationClient`] HTTP wrapper that
 /// fronts every backend-proxied integration) and `domain="composio"` (errors
 /// reported from the Composio op layer in
-/// [`crate::openhuman::composio::ops`]). Composio routes through the same
+/// [`crate::benito::composio::ops`]). Composio routes through the same
 /// `IntegrationClient`, so the failure shape is identical — but op-level
 /// reporters that wrap and re-emit those errors with their own domain tag
-/// would otherwise escape the integrations-scoped filter (OPENHUMAN-TAURI-35
+/// would otherwise escape the integrations-scoped filter (Benito-TAURI-35
 /// ~139ev, -2H ~26ev: `[composio] list_connections failed: Backend returned
 /// 502 …` events that landed in Sentry under `domain=composio`).
 pub fn is_transient_integrations_failure(event: &sentry::protocol::Event<'_>) -> bool {
@@ -1099,7 +1099,7 @@ fn event_contains_budget_exhausted_message(event: &sentry::protocol::Event<'_>) 
     if event
         .message
         .as_deref()
-        .is_some_and(crate::openhuman::inference::provider::is_budget_exhausted_message)
+        .is_some_and(crate::benito::inference::provider::is_budget_exhausted_message)
     {
         return true;
     }
@@ -1108,7 +1108,7 @@ fn event_contains_budget_exhausted_message(event: &sentry::protocol::Event<'_>) 
         exception
             .value
             .as_deref()
-            .is_some_and(crate::openhuman::inference::provider::is_budget_exhausted_message)
+            .is_some_and(crate::benito::inference::provider::is_budget_exhausted_message)
     })
 }
 
@@ -1159,7 +1159,7 @@ mod tests {
 
     #[test]
     fn classifies_local_ai_capability_unavailable_errors() {
-        // OPENHUMAN-TAURI-3B: surfaced by `local_ai_download_asset` when a
+        // Benito-TAURI-3B: surfaced by `local_ai_download_asset` when a
         // user on a 0–4 GB RAM tier requests a vision asset. Both canonical
         // wire shapes — emitted from `assets.rs` and `vision_embed.rs` —
         // must classify as expected so they stop reaching Sentry.
@@ -1198,7 +1198,7 @@ mod tests {
 
     #[test]
     fn classifies_network_unreachable_errors() {
-        // OPENHUMAN-TAURI-32: reqwest's transport-level error wrapped by the
+        // Benito-TAURI-32: reqwest's transport-level error wrapped by the
         // web_channel error site. The classifier must catch it even when
         // embedded in caller context, since `report_error_or_expected` runs
         // `expected_error_kind` on the full anyhow chain.
@@ -1245,20 +1245,20 @@ mod tests {
 
     #[test]
     fn classifies_transient_upstream_http_errors() {
-        // OPENHUMAN-TAURI-5Z: the canonical shape emitted by
+        // Benito-TAURI-5Z: the canonical shape emitted by
         // `providers::ops::api_error` and re-raised through `agent.run_single`.
         assert_eq!(
-            expected_error_kind("OpenHuman API error (504 Gateway Timeout): error code: 504"),
+            expected_error_kind("Benito API error (504 Gateway Timeout): error code: 504"),
             Some(ExpectedErrorKind::TransientUpstreamHttp)
         );
 
         // Every transient code must classify, whether the status renders as
         // bare digits or "<digits> <reason>".
         for raw in [
-            "OpenHuman API error (408): request timeout",
+            "Benito API error (408): request timeout",
             "OpenAI API error (429 Too Many Requests): rate limit",
             "Anthropic API error (502 Bad Gateway): upstream unhealthy",
-            "OpenHuman API error (503): service unavailable",
+            "Benito API error (503): service unavailable",
             "Provider API error (504): upstream timed out",
         ] {
             assert_eq!(
@@ -1272,7 +1272,7 @@ mod tests {
         // still classify — `expected_error_kind` is substring-based.
         assert_eq!(
             expected_error_kind(
-                "agent turn failed: OpenHuman API error (504 Gateway Timeout): \
+                "agent turn failed: Benito API error (504 Gateway Timeout): \
                  error code: 504"
             ),
             Some(ExpectedErrorKind::TransientUpstreamHttp)
@@ -1281,8 +1281,8 @@ mod tests {
 
     #[test]
     fn integrations_post_composio_timeout_dropped() {
-        // OPENHUMAN-TAURI-18 / -G regression guard. The integrations
-        // client at `crate::openhuman::integrations::client::IntegrationClient::post`
+        // Benito-TAURI-18 / -G regression guard. The integrations
+        // client at `crate::benito::integrations::client::IntegrationClient::post`
         // builds the reqwest error chain and routes it through
         // `report_error_or_expected(.., "integrations", "post", &[("failure",
         // "transport")])`. The chain text contains the
@@ -1319,27 +1319,27 @@ mod tests {
 
     #[test]
     fn channels_dispatch_re_emit_of_provider_502_classifies_as_transient() {
-        // OPENHUMAN-TAURI-4F (~157 events) / -1C (~87 events) / -8F
+        // Benito-TAURI-4F (~157 events) / -1C (~87 events) / -8F
         // (~39 events): the reliable provider layer retried 5xx, the
         // agent re-raised the error, and `channels::runtime::dispatch`
         // re-emitted it under `domain="channels", operation="dispatch_llm_error"`
         // via raw `report_error` (which skips classification). Switching
         // that site to `report_error_or_expected` routes the chain
         // through this classifier — but only works if the canonical
-        // `"OpenHuman API error (NNN ...)"` substring still anchors the
+        // `"Benito API error (NNN ...)"` substring still anchors the
         // match through the channels-layer wrapping.
         //
         // The wrapping shape at the dispatch site is the agent error
         // chain rendered via `format!("{e:#}")`. For a backend 502 from
         // `providers::ops::api_error`, that resolves to:
-        //   "OpenHuman API error (502 Bad Gateway): error code: 502"
+        //   "Benito API error (502 Bad Gateway): error code: 502"
         // possibly prepended with a runner / iteration prefix. Both
         // shapes must classify as transient so the dispatch re-emit
         // gets demoted.
         for raw in [
-            "OpenHuman API error (502 Bad Gateway): error code: 502",
-            "agent.provider_chat failed: OpenHuman API error (503 Service Unavailable): retry budget exhausted",
-            "all providers exhausted: OpenHuman API error (504 Gateway Timeout): error code: 504",
+            "Benito API error (502 Bad Gateway): error code: 502",
+            "agent.provider_chat failed: Benito API error (503 Service Unavailable): retry budget exhausted",
+            "all providers exhausted: Benito API error (504 Gateway Timeout): error code: 504",
         ] {
             assert_eq!(
                 expected_error_kind(raw),
@@ -1351,7 +1351,7 @@ mod tests {
 
     #[test]
     fn classifies_socket_transient_http_errors() {
-        // OPENHUMAN-TAURI-5P / -EZ: tungstenite's `WsError::Http(response)`
+        // Benito-TAURI-5P / -EZ: tungstenite's `WsError::Http(response)`
         // surfaces during the WebSocket upgrade handshake when the backend
         // load balancer returns 502 / 504. The socket reconnect loop wraps
         // it as `format!("WebSocket connect: {e}")`, producing
@@ -1447,7 +1447,7 @@ mod tests {
 
     #[test]
     fn classifies_backend_user_error_responses() {
-        // OPENHUMAN-TAURI-BC: SharePoint authorize 400 because the user
+        // Benito-TAURI-BC: SharePoint authorize 400 because the user
         // didn't fill in the required Tenant Name field. After the
         // ProviderUserState classifier was added (#1472 wave E), this
         // canonical shape now lands in the more specific
@@ -1463,7 +1463,7 @@ mod tests {
         assert_eq!(
             expected_error_kind(bc),
             Some(ExpectedErrorKind::ProviderUserState),
-            "OPENHUMAN-TAURI-BC wire shape must classify as ProviderUserState (the \
+            "Benito-TAURI-BC wire shape must classify as ProviderUserState (the \
              more specific bucket once #1472 wave E added it)"
         );
 
@@ -1535,7 +1535,7 @@ mod tests {
 
     #[test]
     fn classifies_trigger_type_not_found_as_provider_user_state() {
-        // OPENHUMAN-TAURI-3R / -3S: composio enable_trigger when the slug
+        // Benito-TAURI-3R / -3S: composio enable_trigger when the slug
         // isn't in the trigger registry. Backend wraps the upstream
         // composio 4xx as 500, so this would otherwise escape the
         // 4xx-only `is_backend_user_error_message` matcher.
@@ -1570,7 +1570,7 @@ mod tests {
 
     #[test]
     fn classifies_toolkit_not_enabled_as_provider_user_state() {
-        // OPENHUMAN-TAURI-34: 400 from composio because the user hasn't
+        // Benito-TAURI-34: 400 from composio because the user hasn't
         // enabled the toolkit. Must classify as ProviderUserState (more
         // specific) rather than the generic BackendUserError bucket — the
         // ordering in `expected_error_kind` enforces that.
@@ -1645,7 +1645,7 @@ mod tests {
 
     #[test]
     fn classifies_missing_required_fields_as_provider_user_state() {
-        // OPENHUMAN-TAURI-97: composio authorize with a blank required
+        // Benito-TAURI-97: composio authorize with a blank required
         // field. Backend wraps the composio 400 as 500 with the inner
         // body embedded as a JSON-stringified error message.
         assert_eq!(
@@ -1673,7 +1673,7 @@ mod tests {
 
     #[test]
     fn classifies_insufficient_scopes_as_provider_user_state() {
-        // OPENHUMAN-TAURI-33: gmail sync surfaced the upstream Google
+        // Benito-TAURI-33: gmail sync surfaced the upstream Google
         // OAuth scopes error verbatim through composio. Reaches the RPC
         // dispatch site via `[composio] sync(gmail) failed: [composio:gmail]
         // GMAIL_FETCH_EMAILS page 0: HTTP 403: Request had insufficient
@@ -1745,7 +1745,7 @@ mod tests {
 
     #[test]
     fn classifies_provider_config_rejection() {
-        // #2079 — an OpenHuman abstract tier alias leaked to a custom
+        // #2079 — an Benito abstract tier alias leaked to a custom
         // provider; raised again by `agent.run_single` /
         // `web_channel.run_chat_task` so it escapes the provider-layer
         // demotion and reaches `report_error_or_expected` here.
@@ -1778,7 +1778,7 @@ mod tests {
     fn does_not_classify_unrelated_provider_failures_as_config_rejection() {
         // Inverted polarity / scope guard: a 5xx or a generic 4xx with no
         // config-rejection body must still reach Sentry as actionable.
-        // (The OpenHuman backend never emits these phrases, so the
+        // (The Benito backend never emits these phrases, so the
         // message-level predicate is intrinsically custom-provider scoped;
         // the HTTP-layer twin enforces the non-backend guard explicitly.)
         assert_eq!(
@@ -1835,7 +1835,7 @@ mod tests {
 
     #[test]
     fn classifies_local_ai_binary_missing_errors() {
-        // OPENHUMAN-TAURI-9N: `local_ai_tts` returns this exact string
+        // Benito-TAURI-9N: `local_ai_tts` returns this exact string
         // from `service::speech::tts` when piper isn't on PATH or
         // `PIPER_BIN` isn't set.
         assert_eq!(
@@ -1890,16 +1890,16 @@ mod tests {
 
     #[test]
     fn classifies_session_expired_messages() {
-        // OPENHUMAN-TAURI-26: the canonical wire shape that `agent.run_single`
+        // Benito-TAURI-26: the canonical wire shape that `agent.run_single`
         // and `web_channel.run_chat_task` re-emit via `report_error_or_expected`
         // when the user's JWT expires mid-conversation. The classifier
         // anchors on the literal `"session expired"` substring from the
-        // OpenHuman backend's 401 body — NOT on the bare `(401 Unauthorized)`
+        // Benito backend's 401 body — NOT on the bare `(401 Unauthorized)`
         // status, which would also silence BYO-key OpenAI/Anthropic 401s
         // that are actionable.
         assert_eq!(
             expected_error_kind(
-                r#"OpenHuman API error (401 Unauthorized): {"success":false,"error":"Session expired. Please log in again."}"#
+                r#"Benito API error (401 Unauthorized): {"success":false,"error":"Session expired. Please log in again."}"#
             ),
             Some(ExpectedErrorKind::SessionExpired)
         );
@@ -1909,14 +1909,14 @@ mod tests {
         // defeat it.
         assert_eq!(
             expected_error_kind(
-                r#"run_chat_task failed client_id=abc thread_id=t1 request_id=r1 error=OpenHuman API error (401 Unauthorized): {"success":false,"error":"Session expired. Please log in again."}"#
+                r#"run_chat_task failed client_id=abc thread_id=t1 request_id=r1 error=Benito API error (401 Unauthorized): {"success":false,"error":"Session expired. Please log in again."}"#
             ),
             Some(ExpectedErrorKind::SessionExpired)
         );
 
-        // Sentinel raised by `providers::openhuman_backend::resolve_bearer`
+        // Sentinel raised by `providers::BENITO_backend::resolve_bearer`
         // when the scheduler-gate signed-out override is set
-        // (OPENHUMAN-TAURI-1T's cascade dampener returns this so callers
+        // (Benito-TAURI-1T's cascade dampener returns this so callers
         // get the same teardown path as a real backend 401).
         assert_eq!(
             expected_error_kind(
@@ -1925,7 +1925,7 @@ mod tests {
             Some(ExpectedErrorKind::SessionExpired)
         );
 
-        // Local pre-flight guards — OpenHuman-specific phrasing, safe to
+        // Local pre-flight guards — Benito-specific phrasing, safe to
         // match regardless of caller wrapping.
         for raw in [
             "no backend session token; run auth_store_session first",
@@ -1940,12 +1940,12 @@ mod tests {
         }
     }
 
-    /// OPENHUMAN-TAURI-SG (33 events, escalating, release `0.53.43+2b64ea8…`):
+    /// Benito-TAURI-SG (33 events, escalating, release `0.53.43+2b64ea8…`):
     /// pre-#1763 leak of the `resolve_bearer` sentinel through
     /// `agent.run_single`. PR #1763 (1fb0bef5) wired the `SessionExpired`
     /// arm and the existing `classifies_session_expired_messages` test
     /// covers the same byte string — this test pins the *Sentry-event
-    /// verbatim* shape (taken from the OPENHUMAN-TAURI-SG event payload)
+    /// verbatim* shape (taken from the Benito-TAURI-SG event payload)
     /// so a future tweak to `is_session_expired_message` cannot regress
     /// this exact wire form without a red test.
     #[test]
@@ -1954,7 +1954,7 @@ mod tests {
         assert_eq!(
             expected_error_kind(msg),
             Some(ExpectedErrorKind::SessionExpired),
-            "OPENHUMAN-TAURI-SG wire shape must classify as SessionExpired — \
+            "Benito-TAURI-SG wire shape must classify as SessionExpired — \
              a regression here re-leaks 33+ events/cycle to Sentry"
         );
     }
@@ -1963,21 +1963,21 @@ mod tests {
     /// `providers::factory::verify_session_active` emit different message
     /// suffixes but the same sentinel prefix. They route through the same
     /// classifier as the run_single bail at
-    /// `providers::openhuman_backend::resolve_bearer`, and any matcher
+    /// `providers::BENITO_backend::resolve_bearer`, and any matcher
     /// tweak that breaks the family (e.g. moving from `contains` to a
     /// stricter prefix/suffix match) would re-leak ALL of them. Pin every
     /// variant the codebase actually emits so a future regression on the
     /// matcher is caught for the whole family, not just the SG instance.
     #[test]
     fn session_expired_sibling_family_factory_strings_match() {
-        // src/openhuman/inference/provider/factory.rs:247
+        // src/Benito/inference/provider/factory.rs:247
         // (verify_session_active — scheduler_gate signed-out path)
         let custom_providers_variant =
             "SESSION_EXPIRED: backend session not active — sign in to use custom providers";
-        // src/openhuman/inference/provider/factory.rs:266
+        // src/Benito/inference/provider/factory.rs:266
         // (verify_session_active — empty auth-profile JWT path)
         let no_backend_session_variant =
-            "SESSION_EXPIRED: no backend session — sign in to use OpenHuman";
+            "SESSION_EXPIRED: no backend session — sign in to use Benito";
 
         for raw in [custom_providers_variant, no_backend_session_variant] {
             assert_eq!(
@@ -1994,7 +1994,7 @@ mod tests {
         // actionable misconfiguration (wrong API key) that the user needs
         // to fix in settings. It must reach Sentry as an error and must
         // NOT be classified as session-expired at the agent layer — the
-        // strict classifier requires the OpenHuman backend's
+        // strict classifier requires the Benito backend's
         // "session expired" body to anchor the match. The dispatch-site
         // classifier (`crate::core::jsonrpc::is_session_expired_error`)
         // still matches these for the `DomainEvent::SessionExpired`
@@ -2004,7 +2004,7 @@ mod tests {
             "Anthropic API error (401 Unauthorized): authentication_error",
             "OpenAI API error (401): unauthorized",
             r#"OpenAI API error (401 Unauthorized): {"error":{"code":"invalid_api_key","message":"Incorrect API key provided"}}"#,
-            // Generic "invalid token" without OpenHuman session phrasing —
+            // Generic "invalid token" without Benito session phrasing —
             // could mean a third-party provider rejected its own token.
             "Invalid token",
             "got an invalid token here",
@@ -2033,7 +2033,7 @@ mod tests {
         );
         // Lowercase sentinel must NOT match — the SESSION_EXPIRED sentinel
         // is case-sensitive by design (matches the sentinel emitted by
-        // `providers::openhuman_backend::resolve_bearer` exactly).
+        // `providers::BENITO_backend::resolve_bearer` exactly).
         assert_eq!(expected_error_kind("session_expired lowercase"), None);
     }
 
@@ -2259,7 +2259,7 @@ mod tests {
         // by the integrations filter — composio routes through the same
         // `IntegrationClient` so the failure shape is identical, but
         // op-level reporters that wrap and re-emit with their own domain
-        // tag would otherwise escape (OPENHUMAN-TAURI-35 / -2H).
+        // tag would otherwise escape (Benito-TAURI-35 / -2H).
         let scheduler_domain = event_with_tags(&[
             ("domain", "scheduler"),
             ("failure", "non_2xx"),
@@ -2282,7 +2282,7 @@ mod tests {
 
     #[test]
     fn composio_domain_routes_through_integrations_filter() {
-        // OPENHUMAN-TAURI-35 (~139 events) / -2H (~26 events):
+        // Benito-TAURI-35 (~139 events) / -2H (~26 events):
         // `[composio] list_connections failed: Backend returned 502 …` —
         // composio op-layer wrappers (e.g. `composio_list_connections`) emit
         // errors under `domain="composio"` so the original
@@ -2368,7 +2368,7 @@ mod tests {
     fn updater_real_panic_still_reported() {
         let event = event_with_tags_and_message(
             &[("domain", "update"), ("operation", "check_releases")],
-            "thread 'main' panicked at src/openhuman/update/core.rs: index out of bounds",
+            "thread 'main' panicked at src/Benito/update/core.rs: index out of bounds",
         );
         assert!(
             !is_updater_transient_event(&event),
@@ -2382,7 +2382,7 @@ mod tests {
             "rpc.invoke_method failed: GET /teams failed (502 Bad Gateway)",
             "GET /teams/me/usage failed (503 Service Unavailable)",
             "downstream returned (504 Gateway Timeout): retry budget exhausted",
-            "OpenHuman API error (520 <unknown status code>): cf",
+            "Benito API error (520 <unknown status code>): cf",
             "POST /channels/telegram/typing failed (429 Too Many Requests)",
             "auth connect failed: 503 Service Unavailable",
         ] {
@@ -2429,7 +2429,7 @@ mod tests {
     fn budget_filter_drops_budget_message_on_tagged_400() {
         let event = event_with_tags_and_message(
             &[("failure", "non_2xx"), ("status", "400")],
-            r#"OpenHuman API error (400 Bad Request): {"success":false,"error":"Insufficient budget"}"#,
+            r#"Benito API error (400 Bad Request): {"success":false,"error":"Insufficient budget"}"#,
         );
 
         assert!(is_budget_event(&event));
@@ -2475,7 +2475,7 @@ mod tests {
             "local ai is disabled",
             "rpc",
             "invoke_method",
-            &[("method", "openhuman.inference_prompt")],
+            &[("method", "Benito.inference_prompt")],
         );
         report_error_or_expected(
             "ollama API key not set",
@@ -2547,7 +2547,7 @@ mod tests {
         assert!(!is_max_iterations_event(&sentry::protocol::Event::default()));
     }
 
-    /// Verbatim body shape from OPENHUMAN-TAURI-R5 (~2.5k events): the
+    /// Verbatim body shape from Benito-TAURI-R5 (~2.5k events): the
     /// `integrations.get` site reaches the embedded core's `127.0.0.1:18474`
     /// listener during the boot window and reqwest's source chain renders as
     /// `error sending request for url (…) → client error (Connect) → tcp
@@ -2556,7 +2556,7 @@ mod tests {
         (http://127.0.0.1:18474/agent-integrations/composio/connections) \
         → client error (Connect) → tcp connect error → Connection refused (os error 61)";
 
-    /// Verbatim body shape from OPENHUMAN-TAURI-R6 (~2.5k events): the same
+    /// Verbatim body shape from Benito-TAURI-R6 (~2.5k events): the same
     /// transport failure as R5, re-wrapped one frame up by the composio
     /// op-layer and re-emitted at the `rpc.invoke_method` site so it lands in
     /// Sentry under `domain=rpc` instead of `domain=integrations`.
@@ -2696,7 +2696,7 @@ mod tests {
             R6_BODY,
             "rpc",
             "invoke_method",
-            &[("method", "openhuman.composio_list_connections")],
+            &[("method", "Benito.composio_list_connections")],
         );
     }
 }

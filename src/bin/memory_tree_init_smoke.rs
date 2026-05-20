@@ -1,4 +1,4 @@
-//! Manual stress smoke for the memory_tree schema-init race fix.
+﻿//! Manual stress smoke for the memory_tree schema-init race fix.
 //!
 //! Spins N concurrent threads racing into `memory::tree::store::with_connection`
 //! against a shared workspace. Pre-fix (without the mutex-gated init guard),
@@ -11,11 +11,11 @@
 //! ```sh
 //! # Fresh workspace (forces cold-start path)
 //! rm -rf /tmp/mt-smoke
-//! OPENHUMAN_WORKSPACE=/tmp/mt-smoke \
+//! BENITO_WORKSPACE=/tmp/mt-smoke \
 //!   cargo run --bin memory-tree-init-smoke -- 32
 //!
 //! # Re-run against warm DB (should also be Ok; exercises fast path)
-//! OPENHUMAN_WORKSPACE=/tmp/mt-smoke \
+//! BENITO_WORKSPACE=/tmp/mt-smoke \
 //!   cargo run --bin memory-tree-init-smoke -- 32
 //! ```
 //!
@@ -29,18 +29,18 @@ use std::process::ExitCode;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use openhuman_core::openhuman::config::Config;
-use openhuman_core::openhuman::memory::tree::store::with_connection;
+use benito_core::benito::config::Config;
+use benito_core::benito::memory::tree::store::with_connection;
 
 fn main() -> ExitCode {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .try_init()
         .ok();
 
-    let workspace = match std::env::var("OPENHUMAN_WORKSPACE") {
+    let workspace = match std::env::var("BENITO_WORKSPACE") {
         Ok(v) => PathBuf::from(v),
         Err(_) => {
-            log::error!("OPENHUMAN_WORKSPACE must be set to a writable directory");
+            log::error!("BENITO_WORKSPACE must be set to a writable directory");
             return ExitCode::from(2);
         }
     };

@@ -1,4 +1,4 @@
-//! Generic structured error envelope for the JSON-RPC controller boundary.
+﻿//! Generic structured error envelope for the JSON-RPC controller boundary.
 //!
 //! Domains expose typed errors (e.g. `ThreadsError::NotFound`) and convert
 //! them — at their own boundary — into [`StructuredRpcError`]s. The envelope
@@ -25,7 +25,7 @@ use serde_json::Value;
 /// The prefix is intentionally noisy and unlikely to collide with a real
 /// human-readable error message. If a controller error string starts with
 /// this prefix, the boundary decodes the rest as JSON.
-pub const STRUCTURED_RPC_ERROR_SENTINEL: &str = "__OPENHUMAN_STRUCTURED_RPC_ERROR_V1__:";
+pub const STRUCTURED_RPC_ERROR_SENTINEL: &str = "__BENITO_STRUCTURED_RPC_ERROR_V1__:";
 
 /// Generic structured error emitted by a controller / domain boundary.
 ///
@@ -90,7 +90,7 @@ mod tests {
     fn decode_returns_none_for_plain_strings() {
         assert!(StructuredRpcError::decode("plain error").is_none());
         assert!(StructuredRpcError::decode("").is_none());
-        assert!(StructuredRpcError::decode("__OPENHUMAN_STRUCTURED_RPC_ERROR_V1__").is_none());
+        assert!(StructuredRpcError::decode("__BENITO_STRUCTURED_RPC_ERROR_V1__").is_none());
     }
 
     #[test]

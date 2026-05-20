@@ -1,7 +1,7 @@
-//! Cross-module event bus for decoupled events and typed in-process requests.
+﻿//! Cross-module event bus for decoupled events and typed in-process requests.
 //!
 //! The event bus is a **singleton** — one instance for the entire application.
-//! It serves as the central nervous system of OpenHuman, allowing different
+//! It serves as the central nervous system of Benito, allowing different
 //! modules (like memory, skills, and agents) to communicate without
 //! direct dependencies.
 //!

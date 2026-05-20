@@ -1,0 +1,11 @@
+language = "C"
+include_version = true
+cpp_compat = true
+
+[export]
+include = ["BenitoAgentHandle", "BenitoCallbacks"]
+exclude = ["NullProvider", "FFITool", "TextDeltaCb", "ToolUseCb"]
+
+[fn]
+args = "Vertical"
+rename_args = "none"

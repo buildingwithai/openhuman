@@ -1,4 +1,4 @@
-//! JSON-RPC 2.0 server implementation for OpenHuman.
+﻿//! JSON-RPC 2.0 server implementation for Benito.
 //!
 //! This module provides:
 //! - An Axum-based HTTP server for handling JSON-RPC requests.
@@ -78,7 +78,7 @@ pub async fn rpc_handler(State(state): State<AppState>, Json(req): Json<RpcReque
             // Param-validation failures ("unknown param 'x' for ns.fn",
             // "missing required param 'x'", "invalid params: …") are also
             // pure boundary mismatches: either the caller is a frontend on a
-            // different release than the running core (OPENHUMAN-TAURI-20:
+            // different release than the running core (Benito-TAURI-20:
             // v0.53.22 UI shipped `api_key` before the matching schema input
             // landed in #1467) or it is straight client-bug input. Sentry
             // cannot help — we can neither retro-fix already-shipped
@@ -123,7 +123,7 @@ pub async fn rpc_handler(State(state): State<AppState>, Json(req): Json<RpcReque
                 // query params, or pasted-through provider error text that
                 // includes tokens. `sanitize_api_error` runs the same scrub
                 // used in the SessionExpired publish path below.
-                let redacted = crate::openhuman::inference::provider::ops::sanitize_api_error(
+                let redacted = crate::benito::inference::provider::ops::sanitize_api_error(
                     &display_message,
                 );
                 tracing::warn!(
@@ -190,7 +190,7 @@ pub async fn invoke_method(state: AppState, method: &str, params: Value) -> Resu
             crate::core::event_bus::publish_global(
                 crate::core::event_bus::DomainEvent::SessionExpired {
                     source: format!("jsonrpc.invoke_method:{method}"),
-                    reason: crate::openhuman::inference::provider::ops::sanitize_api_error(msg),
+                    reason: crate::benito::inference::provider::ops::sanitize_api_error(msg),
                 },
             );
         }
@@ -210,7 +210,7 @@ pub async fn invoke_method(state: AppState, method: &str, params: Value) -> Resu
 /// the user mis-configured an OpenAI / Anthropic key). The strict
 /// classifier in `observability` is for the agent / web-channel
 /// `report_error_or_expected` call sites, where matching too loosely would
-/// silence actionable BYO-key configuration errors (OPENHUMAN-TAURI-26
+/// silence actionable BYO-key configuration errors (Benito-TAURI-26
 /// rationale: the agent-layer demote must NOT also swallow generic
 /// provider 401s).
 ///
@@ -354,7 +354,7 @@ fn success_html() -> String {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>OpenHuman &#8212; Connected</title>
+    <title>Benito &#8212; Connected</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
@@ -368,7 +368,7 @@ fn success_html() -> String {
     <div class="card">
         <div class="icon">&#10004;</div>
         <h1>Connected!</h1>
-        <p>Your Telegram account has been connected to OpenHuman. You can close this tab.</p>
+        <p>Your Telegram account has been connected to Benito. You can close this tab.</p>
     </div>
 </body>
 </html>"#
@@ -393,7 +393,7 @@ fn error_html(message: &str) -> String {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>OpenHuman &#8212; Error</title>
+    <title>Benito &#8212; Error</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }}
@@ -445,7 +445,7 @@ async fn telegram_auth_handler(Query(query): Query<TelegramAuthQuery>) -> impl I
 
     log::info!("[auth:telegram] Received registration callback with token");
 
-    let config = match crate::openhuman::config::Config::load_or_init().await {
+    let config = match crate::benito::config::Config::load_or_init().await {
         Ok(c) => c,
         Err(e) => {
             log::error!("[auth:telegram] Failed to load config: {e}");
@@ -502,7 +502,7 @@ async fn telegram_auth_handler(Query(query): Query<TelegramAuthQuery>) -> impl I
     };
 
     // Store the resulting session token in the local configuration.
-    match crate::openhuman::credentials::ops::store_session(&config, &jwt_token, None, None).await {
+    match crate::benito::credentials::ops::store_session(&config, &jwt_token, None, None).await {
         Ok(outcome) => {
             for msg in &outcome.logs {
                 log::info!("[auth:telegram] {msg}");
@@ -525,14 +525,14 @@ async fn telegram_auth_handler(Query(query): Query<TelegramAuthQuery>) -> impl I
 async fn dictation_ws_handler(ws: WebSocketUpgrade) -> Response {
     log::info!("[ws] dictation WebSocket upgrade requested");
     ws.on_upgrade(|socket| async move {
-        let config = match crate::openhuman::config::rpc::load_config_with_timeout().await {
+        let config = match crate::benito::config::rpc::load_config_with_timeout().await {
             Ok(c) => Arc::new(c),
             Err(e) => {
                 log::error!("[ws] failed to load config for dictation: {e}");
                 return;
             }
         };
-        crate::openhuman::voice::streaming::handle_dictation_ws(socket, config).await;
+        crate::benito::voice::streaming::handle_dictation_ws(socket, config).await;
     })
 }
 
@@ -556,7 +556,7 @@ pub fn build_core_http_router(socketio_enabled: bool) -> Router {
         .route("/ws/dictation", get(dictation_ws_handler))
         .route("/auth/telegram", get(telegram_auth_handler))
         // OpenAI-compatible inference endpoint (/v1/chat/completions, /v1/models)
-        .nest("/v1", crate::openhuman::inference::http::router())
+        .nest("/v1", crate::benito::inference::http::router())
         .fallback(not_found_handler)
         .layer(middleware::from_fn(http_request_log_middleware))
         .layer(middleware::from_fn(crate::core::auth::rpc_auth_middleware))
@@ -658,7 +658,7 @@ async fn events_handler(
     Query(query): Query<EventsQuery>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, std::convert::Infallible>>> {
     let client_id = query.client_id;
-    let rx = crate::openhuman::channels::providers::web::subscribe_web_channel_events();
+    let rx = crate::benito::channels::providers::web::subscribe_web_channel_events();
     let stream = tokio_stream::wrappers::BroadcastStream::new(rx).filter_map(move |item| {
         let event = match item {
             Ok(ev) => ev,
@@ -691,7 +691,7 @@ async fn webhook_events_handler() -> Response {
 
 /// Handler for the root endpoint, returning server information and available endpoints.
 async fn root_handler() -> impl IntoResponse {
-    let api_server = match crate::openhuman::config::Config::load_or_init().await {
+    let api_server = match crate::benito::config::Config::load_or_init().await {
         Ok(cfg) => crate::api::config::effective_backend_api_url(&cfg.api_url),
         Err(_) => crate::api::config::effective_backend_api_url(&None),
     };
@@ -699,7 +699,7 @@ async fn root_handler() -> impl IntoResponse {
     (
         StatusCode::OK,
         Json(json!({
-            "name": "openhuman",
+            "name": "Benito",
             "ok": true,
             "api_server": api_server,
             "endpoints": {
@@ -733,7 +733,7 @@ async fn not_found_handler() -> impl IntoResponse {
 
 /// Resolves the port for the core server from environment variables or defaults.
 fn core_port() -> u16 {
-    std::env::var("OPENHUMAN_CORE_PORT")
+    std::env::var("benito_core_PORT")
         .ok()
         .and_then(|v| v.parse::<u16>().ok())
         .unwrap_or(7788)
@@ -741,7 +741,7 @@ fn core_port() -> u16 {
 
 /// Resolves the bind address host for the core server from environment variables or defaults.
 fn core_host() -> String {
-    std::env::var("OPENHUMAN_CORE_HOST")
+    std::env::var("benito_core_HOST")
         .ok()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "127.0.0.1".to_string())
@@ -818,10 +818,10 @@ async fn run_server_inner(
 
     // Initialize the per-process RPC bearer token.
     // Written to {workspace_dir}/core.token so the Tauri shell can read it.
-    let token_dir = crate::openhuman::config::default_root_openhuman_dir().unwrap_or_else(|_| {
+    let token_dir = crate::benito::config::default_root_BENITO_dir().unwrap_or_else(|_| {
         dirs::home_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join(".openhuman")
+            .join(".Benito")
     });
     crate::core::auth::init_rpc_token(&token_dir)?;
 
@@ -833,20 +833,20 @@ async fn run_server_inner(
     {
         // A `Config::load_or_init` failure here is operator-visible and
         // serious (corrupt toml, bad permissions, missing/unwritable
-        // OPENHUMAN_WORKSPACE — common on headless/containerised deploys
+        // BENITO_WORKSPACE — common on headless/containerised deploys
         // with no writable $HOME). Previously we fell back to
         // `Config::default()` and initialised the memory + whatsapp_data
         // stores against the *wrong* workspace dir, silently causing chunk
         // loss / cross-workspace bleed-over while the app looked healthy
-        // (Sentry OPENHUMAN-CORE-48). Instead: skip the workspace-bound
+        // (Sentry Benito-CORE-48). Instead: skip the workspace-bound
         // init entirely so memory stays explicitly *uninitialised* —
         // callers then get a clear "memory client not ready" error rather
         // than reading/writing the wrong workspace. The server still comes
         // up; the operator sees the loud error and fixes their config or
-        // sets OPENHUMAN_WORKSPACE to a writable path, then restarts.
-        match crate::openhuman::config::Config::load_or_init().await {
+        // sets BENITO_WORKSPACE to a writable path, then restarts.
+        match crate::benito::config::Config::load_or_init().await {
             Ok(cfg) => {
-                match crate::openhuman::memory::global::init(cfg.workspace_dir.clone()) {
+                match crate::benito::memory::global::init(cfg.workspace_dir.clone()) {
                     Ok(_) => log::info!(
                         "[boot] memory::global initialized (workspace={})",
                         cfg.workspace_dir.display()
@@ -855,7 +855,7 @@ async fn run_server_inner(
                 }
                 // Initialize the WhatsApp data store so scanner ingest calls
                 // can write data without requiring a lazy-init fallback.
-                match crate::openhuman::whatsapp_data::global::init(cfg.workspace_dir.clone()) {
+                match crate::benito::whatsapp_data::global::init(cfg.workspace_dir.clone()) {
                     Ok(_) => log::info!(
                         "[boot] whatsapp_data::global initialized (workspace={})",
                         cfg.workspace_dir.display()
@@ -869,7 +869,7 @@ async fn run_server_inner(
                      Config::load_or_init failed ({e:#}). Memory persistence is \
                      DISABLED for this run; no silent fallback to the default \
                      workspace (which would cause chunk loss / cross-workspace \
-                     bleed-over). Fix config.toml or set OPENHUMAN_WORKSPACE to a \
+                     bleed-over). Fix config.toml or set BENITO_WORKSPACE to a \
                      writable path, then restart."
                 );
             }
@@ -880,8 +880,8 @@ async fn run_server_inner(
         Some(p) => (p, "CLI --port"),
         None => (
             core_port(),
-            if std::env::var("OPENHUMAN_CORE_PORT").is_ok() {
-                "env OPENHUMAN_CORE_PORT"
+            if std::env::var("benito_core_PORT").is_ok() {
+                "env benito_core_PORT"
             } else {
                 "default"
             },
@@ -891,12 +891,12 @@ async fn run_server_inner(
         Some(h) => (h.to_string(), "CLI --host"),
         None => (
             core_host(),
-            if std::env::var("OPENHUMAN_CORE_HOST")
+            if std::env::var("benito_core_HOST")
                 .ok()
                 .filter(|s| !s.is_empty())
                 .is_some()
             {
-                "env OPENHUMAN_CORE_HOST"
+                "env benito_core_HOST"
             } else {
                 "default"
             },
@@ -910,8 +910,8 @@ async fn run_server_inner(
     // Safety check: refuse to bind on a non-loopback address without an
     // explicit RPC token. Without this, the entire RPC surface (tool
     // execution, file access, credentials) is unauthenticated and reachable
-    // from the network. See: https://github.com/tinyhumansai/openhuman/issues/1919
-    if crate::openhuman::security::pairing::is_public_bind(&resolved_host) {
+    // from the network. See: https://github.com/tinyhumansai/Benito/issues/1919
+    if crate::benito::security::pairing::is_public_bind(&resolved_host) {
         let has_explicit_token = std::env::var(crate::core::auth::CORE_TOKEN_ENV_VAR)
             .ok()
             .filter(|s| !s.trim().is_empty())
@@ -919,13 +919,13 @@ async fn run_server_inner(
         if !has_explicit_token {
             log::error!(
                 "[core] ⚠️  SECURITY WARNING: Binding on public address {resolved_host} without \
-                 an explicit OPENHUMAN_CORE_TOKEN. The RPC server will auto-generate a token, \
-                 but external clients will not know it. Set OPENHUMAN_CORE_TOKEN in your \
+                 an explicit benito_core_TOKEN. The RPC server will auto-generate a token, \
+                 but external clients will not know it. Set benito_core_TOKEN in your \
                  .env file to secure the RPC endpoint."
             );
             eprintln!(
-                "\n\x1b[1;31m[SECURITY]\x1b[0m Binding on {resolved_host} without OPENHUMAN_CORE_TOKEN.\n\
-                 Set OPENHUMAN_CORE_TOKEN in .env to secure the RPC endpoint.\n\
+                "\n\x1b[1;31m[SECURITY]\x1b[0m Binding on {resolved_host} without benito_core_TOKEN.\n\
+                 Set benito_core_TOKEN in .env to secure the RPC endpoint.\n\
                  Without it, the auto-generated token is written to {{workspace}}/core.token\n\
                  but remote clients will not be able to authenticate.\n"
             );
@@ -934,7 +934,7 @@ async fn run_server_inner(
 
     let preferred_port = resolved_port;
     let host = resolved_host;
-    let pick = crate::openhuman::connectivity::rpc::pick_listen_port_for_host(
+    let pick = crate::benito::connectivity::rpc::pick_listen_port_for_host(
         host.as_str(),
         preferred_port,
     )
@@ -947,8 +947,8 @@ async fn run_server_inner(
     let bind_addr = format!("{host}:{listen_port}");
     let listener = pick.listener;
 
-    // Synchronize OPENHUMAN_CORE_RPC_URL with the actual bound port so
-    // connectivity::rpc::resolve_listen_port() (used by openhuman.connectivity_diag)
+    // Synchronize benito_core_RPC_URL with the actual bound port so
+    // connectivity::rpc::resolve_listen_port() (used by Benito.connectivity_diag)
     // reports the live listener instead of the originally-requested port when
     // fallback engaged. Embedded path also calls this via apply_embedded_ready_signal,
     // but the standalone CLI never did before — leaving diag stale on fallback.
@@ -956,7 +956,7 @@ async fn run_server_inner(
     // SAFETY: set_var is process-global; this runs once during bind and the
     // standalone CLI doesn't share its env with concurrent test threads.
     unsafe {
-        std::env::set_var("OPENHUMAN_CORE_RPC_URL", format!("http://{bind_addr}/rpc"));
+        std::env::set_var("benito_core_RPC_URL", format!("http://{bind_addr}/rpc"));
     }
 
     let app = build_core_http_router(socketio_enabled);
@@ -965,7 +965,7 @@ async fn run_server_inner(
     bootstrap_core_runtime(embedded_core).await;
 
     log::info!(
-        "[core] OpenHuman core is ready — listening on http://{bind_addr} (version {})",
+        "[core] Benito core is ready — listening on http://{bind_addr} (version {})",
         env!("CARGO_PKG_VERSION")
     );
     log::info!("[rpc:http] JSON-RPC — POST http://{bind_addr}/rpc (JSON-RPC 2.0)");
@@ -989,7 +989,7 @@ async fn run_server_inner(
     // on disk, startup is deferred until the login handler in
     // `credentials::ops::store_session()` triggers it.
     tokio::spawn(async move {
-        match crate::openhuman::config::Config::load_or_init().await {
+        match crate::benito::config::Config::load_or_init().await {
             Ok(config) => {
                 if embedded_core {
                     log::debug!("[core] embedded core startup");
@@ -1002,7 +1002,7 @@ async fn run_server_inner(
                 // This is unconditional — the hook should fire regardless of
                 // whether the user is currently logged in.
                 crate::core::shutdown::register(|| async {
-                    let engine = crate::openhuman::autocomplete::global_engine();
+                    let engine = crate::benito::autocomplete::global_engine();
                     let status = engine.status().await;
                     if status.running {
                         log::info!(
@@ -1015,21 +1015,21 @@ async fn run_server_inner(
                 });
 
                 // Check if a user is already logged in from a previous session.
-                let already_logged_in = crate::openhuman::config::default_root_openhuman_dir()
+                let already_logged_in = crate::benito::config::default_root_BENITO_dir()
                     .ok()
-                    .and_then(|root| crate::openhuman::config::read_active_user_id(&root))
+                    .and_then(|root| crate::benito::config::read_active_user_id(&root))
                     .is_some();
 
                 if already_logged_in {
                     // User has an active session — start all services now.
                     log::info!("[services] existing session found, starting services");
-                    crate::openhuman::credentials::ops::start_login_gated_services(&config).await;
+                    crate::benito::credentials::ops::start_login_gated_services(&config).await;
 
                     // Subconscious engine + heartbeat.
                     if !config.heartbeat.enabled {
                         log::info!("[subconscious] disabled by config (heartbeat.enabled = false)");
                     } else {
-                        match crate::openhuman::subconscious::global::bootstrap_after_login().await
+                        match crate::benito::subconscious::global::bootstrap_after_login().await
                         {
                             Ok(()) => log::info!(
                                 "[subconscious] bootstrapped on startup (existing session)"
@@ -1051,9 +1051,9 @@ async fn run_server_inner(
 
     // Periodic self-update checker (default: every 1 hour).
     tokio::spawn(async {
-        match crate::openhuman::config::Config::load_or_init().await {
+        match crate::benito::config::Config::load_or_init().await {
             Ok(config) => {
-                crate::openhuman::update::scheduler::run(config.update).await;
+                crate::benito::update::scheduler::run(config.update).await;
             }
             Err(err) => {
                 log::warn!("[core] config load failed, skipping update scheduler: {err}");
@@ -1063,14 +1063,14 @@ async fn run_server_inner(
 
     // Cron scheduler — polls due_jobs() every ~5s and executes them automatically.
     tokio::spawn(async {
-        match crate::openhuman::config::Config::load_or_init().await {
+        match crate::benito::config::Config::load_or_init().await {
             Ok(config) => {
                 if !config.cron.enabled {
                     log::info!("[cron] scheduler disabled via config; skipping");
                     return;
                 }
                 log::info!("[cron] spawning scheduler polling loop");
-                if let Err(e) = crate::openhuman::cron::scheduler::run(config).await {
+                if let Err(e) = crate::benito::cron::scheduler::run(config).await {
                     log::error!("[cron] scheduler loop ended with error: {e}");
                 }
             }
@@ -1081,15 +1081,15 @@ async fn run_server_inner(
     });
 
     // Realtime channel listeners (Telegram getUpdates, Discord gateway, etc.) live in
-    // `start_channels`. Without this task, `openhuman run` would only expose RPC while
+    // `start_channels`. Without this task, `Benito run` would only expose RPC while
     // inbound bot messages are never polled.
-    if std::env::var("OPENHUMAN_DISABLE_CHANNEL_LISTENERS")
+    if std::env::var("BENITO_DISABLE_CHANNEL_LISTENERS")
         .ok()
         .filter(|s| s == "1" || s.eq_ignore_ascii_case("true"))
         .is_none()
     {
         tokio::spawn(async move {
-            let config = match crate::openhuman::config::Config::load_or_init().await {
+            let config = match crate::benito::config::Config::load_or_init().await {
                 Ok(c) => c,
                 Err(e) => {
                     log::warn!("[channels] could not load config for listeners: {e}");
@@ -1103,12 +1103,12 @@ async fn run_server_inner(
                 return;
             }
             log::info!("[channels] spawning in-process realtime listeners (Telegram, Discord, …)");
-            if let Err(e) = crate::openhuman::channels::start_channels(config).await {
+            if let Err(e) = crate::benito::channels::start_channels(config).await {
                 log::error!("[channels] start_channels ended with error: {e}");
             }
         });
     } else {
-        log::info!("[channels] OPENHUMAN_DISABLE_CHANNEL_LISTENERS set — skipping start_channels");
+        log::info!("[channels] BENITO_DISABLE_CHANNEL_LISTENERS set — skipping start_channels");
     }
 
     if let Some(shutdown_token) = shutdown_token {
@@ -1125,15 +1125,15 @@ async fn run_server_inner(
     }
 
     // Server has stopped accepting and in-flight requests drained.
-    // Kill any `ollama serve` openhuman itself spawned (no-op when the
+    // Kill any `ollama serve` Benito itself spawned (no-op when the
     // daemon was externally managed) and clear the spawn marker so the
     // next launch doesn't try to reclaim a daemon that's already dead.
     // Bounded so a wedged Ollama can't hold up app shutdown.
-    if let Some(svc) = crate::openhuman::inference::local::try_global() {
-        let cfg = crate::openhuman::config::Config::load_or_init()
+    if let Some(svc) = crate::benito::inference::local::try_global() {
+        let cfg = crate::benito::config::Config::load_or_init()
             .await
             .unwrap_or_default();
-        log::info!("[core] shutdown: cleaning up openhuman-owned ollama if any");
+        log::info!("[core] shutdown: cleaning up Benito-owned ollama if any");
         let shutdown_fut = svc.shutdown_owned_ollama(&cfg);
         if tokio::time::timeout(std::time::Duration::from_secs(2), shutdown_fut)
             .await
@@ -1152,7 +1152,7 @@ async fn run_server_inner(
 /// are safe and idempotent.
 fn register_domain_subscribers(
     workspace_dir: std::path::PathBuf,
-    config: crate::openhuman::config::Config,
+    config: crate::benito::config::Config,
     embedded_core: bool,
 ) {
     use std::sync::{Arc, Once};
@@ -1162,7 +1162,7 @@ fn register_domain_subscribers(
         // Leak the SubscriptionHandle so the background tasks live for the
         // entire process — SubscriptionHandle::drop aborts the task.
         if let Some(handle) = crate::core::event_bus::subscribe_global(Arc::new(
-            crate::openhuman::webhooks::bus::WebhookRequestSubscriber::new(),
+            crate::benito::webhooks::bus::WebhookRequestSubscriber::new(),
         )) {
             std::mem::forget(handle);
         } else {
@@ -1170,30 +1170,30 @@ fn register_domain_subscribers(
         }
 
         if let Some(handle) = crate::core::event_bus::subscribe_global(Arc::new(
-            crate::openhuman::channels::bus::ChannelInboundSubscriber::new(),
+            crate::benito::channels::bus::ChannelInboundSubscriber::new(),
         )) {
             std::mem::forget(handle);
         } else {
             log::warn!("[event_bus] failed to register channel subscriber — bus not initialized");
         }
 
-        crate::openhuman::health::bus::register_health_subscriber();
-        crate::openhuman::notifications::register_notification_bridge_subscriber();
-        crate::openhuman::memory::conversations::register_conversation_persistence_subscriber(
+        crate::benito::health::bus::register_health_subscriber();
+        crate::benito::notifications::register_notification_bridge_subscriber();
+        crate::benito::memory::conversations::register_conversation_persistence_subscriber(
             workspace_dir.clone(),
         );
-        if let Err(error) = crate::openhuman::composio::init_composio_trigger_history(
+        if let Err(error) = crate::benito::composio::init_composio_trigger_history(
             workspace_dir.clone(),
         ) {
             log::warn!("[composio][history] failed to initialize trigger archive: {error}");
         }
-        crate::openhuman::composio::register_composio_trigger_subscriber();
-        crate::openhuman::composio::start_periodic_sync();
+        crate::benito::composio::register_composio_trigger_subscriber();
+        crate::benito::composio::start_periodic_sync();
         // Initialise the scheduler gate before any background AI workers
         // start so they observe a real policy on their first iteration
         // (otherwise they fall back to `Policy::Normal` and miss the
         // initial throttle decision on battery-powered hosts).
-        crate::openhuman::scheduler_gate::init_global(&config);
+        crate::benito::scheduler_gate::init_global(&config);
 
         // Seed the scheduler-gate signed-out override from the on-disk
         // session. Without this, a sidecar that boots with no stored JWT
@@ -1201,19 +1201,19 @@ fn register_domain_subscribers(
         // that all 401 immediately.
         match crate::api::jwt::get_session_token(&config) {
             Ok(Some(_)) => {
-                crate::openhuman::scheduler_gate::set_signed_out(false);
+                crate::benito::scheduler_gate::set_signed_out(false);
             }
             Ok(None) => {
                 log::info!(
                     "[auth] no session token at startup — scheduler gate set to signed_out"
                 );
-                crate::openhuman::scheduler_gate::set_signed_out(true);
+                crate::benito::scheduler_gate::set_signed_out(true);
             }
             Err(err) => {
                 log::warn!(
                     "[auth] failed to read session token at startup ({err}) — assuming signed_out"
                 );
-                crate::openhuman::scheduler_gate::set_signed_out(true);
+                crate::benito::scheduler_gate::set_signed_out(true);
             }
         }
 
@@ -1221,7 +1221,7 @@ fn register_domain_subscribers(
         // might publish 401-derived events, so the very first 401 is
         // routed through `clear_session` + the scheduler-gate override.
         if let Some(handle) = crate::core::event_bus::subscribe_global(Arc::new(
-            crate::openhuman::credentials::bus::SessionExpiredSubscriber::new(),
+            crate::benito::credentials::bus::SessionExpiredSubscriber::new(),
         )) {
             std::mem::forget(handle);
         } else {
@@ -1230,11 +1230,11 @@ fn register_domain_subscribers(
             );
         }
 
-        crate::openhuman::memory::tree::jobs::start(config.clone());
+        crate::benito::memory::tree::jobs::start(config.clone());
 
         // Restart requests go through a subscriber so every trigger path shares
         // the same respawn logic.
-        crate::openhuman::service::bus::register_restart_subscriber();
+        crate::benito::service::bus::register_restart_subscriber();
         if embedded_core {
             log::info!(
                 "[event_bus] embedded core: service shutdown subscriber not registered; Tauri cancellation token owns shutdown"
@@ -1242,18 +1242,18 @@ fn register_domain_subscribers(
         } else {
             // Shutdown requests use the same pattern; the standalone CLI
             // subscriber exits the current process after a short grace period.
-            crate::openhuman::service::bus::register_shutdown_subscriber();
+            crate::benito::service::bus::register_shutdown_subscriber();
         }
 
         // Proactive message subscriber (web-only in the desktop runtime —
         // no external channel instances are registered here). Uses a
         // Once-guarded registrar so domain-level startup can't duplicate it.
-        crate::openhuman::channels::proactive::register_web_only_proactive_subscriber();
+        crate::benito::channels::proactive::register_web_only_proactive_subscriber();
 
         // Native request handlers — typed in-process request/response.
         // The agent `agent.run_turn` handler is what channel dispatch
         // calls instead of importing `run_tool_call_loop` directly.
-        crate::openhuman::agent::bus::register_agent_handlers();
+        crate::benito::agent::bus::register_agent_handlers();
 
         log::info!(
             "[event_bus] domain subscribers registered (webhook, channel, health, conversation, composio, restart, proactive, agent, session_expired)"
@@ -1263,9 +1263,9 @@ fn register_domain_subscribers(
 
 /// Initializes long-lived socket/event-bus infrastructure.
 pub async fn bootstrap_core_runtime(embedded_core: bool) {
-    use crate::openhuman::socket::{set_global_socket_manager, SocketManager};
+    use crate::benito::socket::{set_global_socket_manager, SocketManager};
     use std::sync::Arc;
-    let cfg = match crate::openhuman::config::Config::load_or_init().await {
+    let cfg = match crate::benito::config::Config::load_or_init().await {
         Ok(cfg) => cfg,
         Err(e) => {
             log::error!("[runtime] Failed to load config for socket manager: {e}");
@@ -1289,7 +1289,7 @@ pub async fn bootstrap_core_runtime(embedded_core: bool) {
     // confusing a stale `Streaming` lifecycle for an in-flight turn.
     {
         let now = chrono::Utc::now().to_rfc3339();
-        match crate::openhuman::threads::turn_state::store::mark_all_interrupted(
+        match crate::benito::threads::turn_state::store::mark_all_interrupted(
             workspace_dir.clone(),
             &now,
         ) {
@@ -1308,7 +1308,7 @@ pub async fn bootstrap_core_runtime(embedded_core: bool) {
     // under `<workspace>/agents/*.toml`. Idempotent — safe to call
     // multiple times. Uses the per-user scoped workspace_dir.
     if let Err(err) =
-        crate::openhuman::agent::harness::AgentDefinitionRegistry::init_global(&workspace_dir)
+        crate::benito::agent::harness::AgentDefinitionRegistry::init_global(&workspace_dir)
     {
         log::warn!(
             "[runtime] AgentDefinitionRegistry::init_global failed: {err} — \
@@ -1317,7 +1317,7 @@ pub async fn bootstrap_core_runtime(embedded_core: bool) {
     }
 
     // --- Approval gate (#1339) ---
-    // Opt-in via `OPENHUMAN_APPROVAL_GATE=1`. When enabled, tool calls
+    // Opt-in via `BENITO_APPROVAL_GATE=1`. When enabled, tool calls
     // with `external_effect() == true` (composio, pushover, gmail
     // unsubscribe, proactive external sends, triage React/Escalate)
     // route through `ApprovalGate::intercept` and park until the UI
@@ -1325,11 +1325,11 @@ pub async fn bootstrap_core_runtime(embedded_core: bool) {
     // the call is denied). Off by default until the React UI
     // (toast + settings panel) lands — otherwise gated tool calls
     // would block the agent loop with nothing to release them.
-    if std::env::var("OPENHUMAN_APPROVAL_GATE")
+    if std::env::var("BENITO_APPROVAL_GATE")
         .map(|v| matches!(v.trim(), "1" | "true" | "TRUE"))
         .unwrap_or(false)
     {
-        let (session_id, ephemeral) = match std::env::var("OPENHUMAN_CORE_TOKEN")
+        let (session_id, ephemeral) = match std::env::var("benito_core_TOKEN")
             .ok()
             .filter(|s| !s.is_empty())
         {
@@ -1338,21 +1338,21 @@ pub async fn bootstrap_core_runtime(embedded_core: bool) {
         };
         if ephemeral {
             log::debug!(
-                "[runtime] OPENHUMAN_CORE_TOKEN unset; generated ephemeral session_id={session_id} \
+                "[runtime] benito_core_TOKEN unset; generated ephemeral session_id={session_id} \
                  for approval gate — `approval_list_pending` is session-agnostic so pending rows \
                  from prior launches will still be visible, but per-session audit grouping will not \
                  correlate across restarts"
             );
         }
         let _ =
-            crate::openhuman::approval::ApprovalGate::init_global(cfg.clone(), session_id.clone());
+            crate::benito::approval::ApprovalGate::init_global(cfg.clone(), session_id.clone());
         log::info!(
-            "[runtime] approval gate installed (OPENHUMAN_APPROVAL_GATE=1, session_id={session_id}) — \
+            "[runtime] approval gate installed (BENITO_APPROVAL_GATE=1, session_id={session_id}) — \
              external-effect tool calls will block until approval_decide"
         );
     } else {
         log::debug!(
-            "[runtime] approval gate disabled (OPENHUMAN_APPROVAL_GATE unset) — \
+            "[runtime] approval gate disabled (BENITO_APPROVAL_GATE unset) — \
              external-effect tool calls run unsupervised"
         );
     }
@@ -1363,7 +1363,7 @@ pub async fn bootstrap_core_runtime(embedded_core: bool) {
     // for the human-readable `sessions/` companions. Idempotent via a
     // marker file at `state/migrations/session_layout_v1.done`, so this
     // costs one stat() on every subsequent boot.
-    match crate::openhuman::agent::harness::session::migrate_session_layout_if_needed(
+    match crate::benito::agent::harness::session::migrate_session_layout_if_needed(
         &workspace_dir,
     ) {
         Ok(outcome) if outcome.already_done => {
@@ -1401,7 +1401,7 @@ pub async fn bootstrap_core_runtime(embedded_core: bool) {
     // This runs in the background so it doesn't block server startup.
     tokio::spawn(async move {
         log::info!("[socket] Checking for stored session to auto-connect...");
-        let config = match crate::openhuman::config::Config::load_or_init().await {
+        let config = match crate::benito::config::Config::load_or_init().await {
             Ok(c) => c,
             Err(e) => {
                 log::debug!("[socket] Config not available for auto-connect: {e}");

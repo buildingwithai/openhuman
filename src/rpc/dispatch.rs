@@ -1,4 +1,4 @@
-//! Legacy compatibility shim for domain-specific RPC dispatch.
+﻿//! Legacy compatibility shim for domain-specific RPC dispatch.
 //!
 //! Domain routing now lives in the controller registry (`src/core/all.rs`).
 //! This module is intentionally minimal so callers can fall through to
@@ -28,7 +28,7 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_security_method_now_falls_through() {
-        let result = try_dispatch("openhuman.security_policy_info", json!({})).await;
+        let result = try_dispatch("Benito.security_policy_info", json!({})).await;
         assert!(
             result.is_none(),
             "security method should be handled by registry path"

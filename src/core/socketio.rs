@@ -1,4 +1,4 @@
-use serde::Deserialize;
+﻿use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
 use socketioxide::extract::{Data, SocketRef};
@@ -251,7 +251,7 @@ pub fn attach_socketio() -> (socketioxide::layer::SocketIoLayer, SocketIo) {
                 );
 
                 // Trigger the web channel's chat logic.
-                match crate::openhuman::channels::providers::web::start_chat(
+                match crate::benito::channels::providers::web::start_chat(
                     &client_id,
                     &payload.thread_id,
                     &payload.message,
@@ -296,7 +296,7 @@ pub fn attach_socketio() -> (socketioxide::layer::SocketIoLayer, SocketIo) {
                     client_id,
                     payload.thread_id
                 );
-                let _ = crate::openhuman::channels::providers::web::cancel_chat(
+                let _ = crate::benito::channels::providers::web::cancel_chat(
                     &client_id,
                     &payload.thread_id,
                 )
@@ -320,7 +320,7 @@ pub fn spawn_web_channel_bridge(io: SocketIo) {
     // 1. Web channel events → per-client rooms.
     let io_web = io.clone();
     tokio::spawn(async move {
-        let mut rx = crate::openhuman::channels::providers::web::subscribe_web_channel_events();
+        let mut rx = crate::benito::channels::providers::web::subscribe_web_channel_events();
         loop {
             let event = match rx.recv().await {
                 Ok(event) => event,
@@ -347,7 +347,7 @@ pub fn spawn_web_channel_bridge(io: SocketIo) {
 
     // 2. Dictation hotkey events → broadcast to all connected clients.
     tokio::spawn(async move {
-        let mut rx = crate::openhuman::voice::dictation_listener::subscribe_dictation_events();
+        let mut rx = crate::benito::voice::dictation_listener::subscribe_dictation_events();
         loop {
             let event = match rx.recv().await {
                 Ok(event) => event,
@@ -373,7 +373,7 @@ pub fn spawn_web_channel_bridge(io: SocketIo) {
 
     // 3. Overlay attention events → broadcast to all clients.
     tokio::spawn(async move {
-        let mut rx = crate::openhuman::overlay::subscribe_attention_events();
+        let mut rx = crate::benito::overlay::subscribe_attention_events();
         loop {
             let event = match rx.recv().await {
                 Ok(event) => event,
@@ -404,7 +404,7 @@ pub fn spawn_web_channel_bridge(io: SocketIo) {
     //    chat session is active. Pattern mirrors the overlay attention
     //    bridge above — fire-and-forget, no per-client routing.
     tokio::spawn(async move {
-        let mut rx = crate::openhuman::notifications::subscribe_core_notifications();
+        let mut rx = crate::benito::notifications::subscribe_core_notifications();
         loop {
             let event = match rx.recv().await {
                 Ok(event) => event,
@@ -496,7 +496,7 @@ pub fn spawn_web_channel_bridge(io: SocketIo) {
 
     // 5. Transcription results → broadcast to all connected clients.
     tokio::spawn(async move {
-        let mut rx = crate::openhuman::voice::dictation_listener::subscribe_transcription_results();
+        let mut rx = crate::benito::voice::dictation_listener::subscribe_transcription_results();
         loop {
             let text = match rx.recv().await {
                 Ok(text) => text,
@@ -524,7 +524,7 @@ pub fn spawn_web_channel_bridge(io: SocketIo) {
     //    overlay and settings panel can react to session lifecycle and
     //    state transitions (Idle → Listening → Thinking → Speaking → …).
     tokio::spawn(async move {
-        let mut rx = crate::openhuman::desktop_companion::bus::subscribe_state_changed();
+        let mut rx = crate::benito::desktop_companion::bus::subscribe_state_changed();
         loop {
             let event = match rx.recv().await {
                 Ok(event) => event,

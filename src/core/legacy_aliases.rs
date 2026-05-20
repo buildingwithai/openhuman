@@ -1,4 +1,4 @@
-//! Server-side legacy RPC method aliases.
+﻿//! Server-side legacy RPC method aliases.
 //!
 //! Mirrors the frontend's `LEGACY_METHOD_ALIASES` table in
 //! `app/src/services/rpcMethods.ts`. The frontend rewrites outgoing method
@@ -22,79 +22,79 @@
 /// key for easier diffing against the frontend table.
 const LEGACY_ALIASES: &[(&str, &str)] = &[
     (
-        "openhuman.get_analytics_settings",
-        "openhuman.config_get_analytics_settings",
+        "Benito.get_analytics_settings",
+        "Benito.config_get_analytics_settings",
     ),
     (
-        "openhuman.get_composio_trigger_settings",
-        "openhuman.config_get_composio_trigger_settings",
+        "Benito.get_composio_trigger_settings",
+        "Benito.config_get_composio_trigger_settings",
     ),
-    ("openhuman.get_config", "openhuman.config_get"),
+    ("Benito.get_config", "Benito.config_get"),
     (
-        "openhuman.get_runtime_flags",
-        "openhuman.config_get_runtime_flags",
+        "Benito.get_runtime_flags",
+        "Benito.config_get_runtime_flags",
     ),
-    ("openhuman.ping", "core.ping"),
+    ("Benito.ping", "core.ping"),
     (
-        "openhuman.set_browser_allow_all",
-        "openhuman.config_set_browser_allow_all",
-    ),
-    (
-        "openhuman.update_analytics_settings",
-        "openhuman.config_update_analytics_settings",
+        "Benito.set_browser_allow_all",
+        "Benito.config_set_browser_allow_all",
     ),
     (
-        "openhuman.update_browser_settings",
-        "openhuman.config_update_browser_settings",
+        "Benito.update_analytics_settings",
+        "Benito.config_update_analytics_settings",
     ),
     (
-        "openhuman.update_composio_trigger_settings",
-        "openhuman.config_update_composio_trigger_settings",
+        "Benito.update_browser_settings",
+        "Benito.config_update_browser_settings",
     ),
     (
-        "openhuman.update_local_ai_settings",
-        "openhuman.inference_update_local_settings",
+        "Benito.update_composio_trigger_settings",
+        "Benito.config_update_composio_trigger_settings",
     ),
     (
-        "openhuman.update_memory_settings",
-        "openhuman.config_update_memory_settings",
+        "Benito.update_local_ai_settings",
+        "Benito.inference_update_local_settings",
     ),
     (
-        "openhuman.update_model_settings",
-        "openhuman.inference_update_model_settings",
+        "Benito.update_memory_settings",
+        "Benito.config_update_memory_settings",
     ),
     (
-        "openhuman.update_runtime_settings",
-        "openhuman.config_update_runtime_settings",
+        "Benito.update_model_settings",
+        "Benito.inference_update_model_settings",
     ),
     (
-        "openhuman.update_screen_intelligence_settings",
-        "openhuman.config_update_screen_intelligence_settings",
+        "Benito.update_runtime_settings",
+        "Benito.config_update_runtime_settings",
     ),
     (
-        "openhuman.workspace_onboarding_flag_exists",
-        "openhuman.config_workspace_onboarding_flag_exists",
+        "Benito.update_screen_intelligence_settings",
+        "Benito.config_update_screen_intelligence_settings",
     ),
     (
-        "openhuman.workspace_onboarding_flag_set",
-        "openhuman.config_workspace_onboarding_flag_set",
+        "Benito.workspace_onboarding_flag_exists",
+        "Benito.config_workspace_onboarding_flag_exists",
     ),
     (
-        "openhuman.local_ai_apply_preset",
-        "openhuman.inference_apply_preset",
+        "Benito.workspace_onboarding_flag_set",
+        "Benito.config_workspace_onboarding_flag_set",
     ),
     (
-        "openhuman.local_ai_device_profile",
-        "openhuman.inference_device_profile",
+        "Benito.local_ai_apply_preset",
+        "Benito.inference_apply_preset",
     ),
     (
-        "openhuman.local_ai_diagnostics",
-        "openhuman.inference_diagnostics",
+        "Benito.local_ai_device_profile",
+        "Benito.inference_device_profile",
     ),
-    ("openhuman.local_ai_presets", "openhuman.inference_presets"),
     (
-        "openhuman.providers_list_models",
-        "openhuman.inference_list_models",
+        "Benito.local_ai_diagnostics",
+        "Benito.inference_diagnostics",
+    ),
+    ("Benito.local_ai_presets", "Benito.inference_presets"),
+    (
+        "Benito.providers_list_models",
+        "Benito.inference_list_models",
     ),
 ];
 
@@ -281,15 +281,15 @@ mod tests {
 
     #[test]
     fn parse_core_rpc_methods_extracts_entries_and_skips_comments() {
-        let source = "export const CORE_RPC_METHODS = {\n  // a comment that should be skipped\n  alphaMethod: 'openhuman.alpha',\n  betaMethod: 'openhuman.beta',\n} as const;\n";
+        let source = "export const CORE_RPC_METHODS = {\n  // a comment that should be skipped\n  alphaMethod: 'Benito.alpha',\n  betaMethod: 'Benito.beta',\n} as const;\n";
         let methods = parse_core_rpc_methods(source);
         assert_eq!(
             methods.get("alphaMethod").map(String::as_str),
-            Some("openhuman.alpha")
+            Some("Benito.alpha")
         );
         assert_eq!(
             methods.get("betaMethod").map(String::as_str),
-            Some("openhuman.beta")
+            Some("Benito.beta")
         );
         assert_eq!(methods.len(), 2);
     }
@@ -298,29 +298,29 @@ mod tests {
     #[should_panic(expected = "malformed CORE_RPC_METHODS entry")]
     fn parse_core_rpc_methods_panics_on_non_colon_line() {
         let source =
-            "export const CORE_RPC_METHODS = {\n  alphaMethod 'openhuman.alpha',\n} as const;\n";
+            "export const CORE_RPC_METHODS = {\n  alphaMethod 'Benito.alpha',\n} as const;\n";
         let _ = parse_core_rpc_methods(source);
     }
 
     #[test]
     fn parse_frontend_legacy_aliases_resolves_core_method_refs_and_literals() {
-        let source = "export const CORE_RPC_METHODS = {\n  alphaMethod: 'openhuman.alpha',\n} as const;\n\nexport const LEGACY_METHOD_ALIASES: Record<string, CoreRpcMethod> = {\n  'openhuman.legacy_alpha': CORE_RPC_METHODS.alphaMethod,\n  'openhuman.legacy_literal': 'openhuman.literal_target',\n};\n";
+        let source = "export const CORE_RPC_METHODS = {\n  alphaMethod: 'Benito.alpha',\n} as const;\n\nexport const LEGACY_METHOD_ALIASES: Record<string, CoreRpcMethod> = {\n  'Benito.legacy_alpha': CORE_RPC_METHODS.alphaMethod,\n  'Benito.legacy_literal': 'Benito.literal_target',\n};\n";
         let core_methods = parse_core_rpc_methods(source);
         let aliases = parse_frontend_legacy_aliases(source, &core_methods);
         assert_eq!(
-            aliases.get("openhuman.legacy_alpha").map(String::as_str),
-            Some("openhuman.alpha")
+            aliases.get("Benito.legacy_alpha").map(String::as_str),
+            Some("Benito.alpha")
         );
         assert_eq!(
-            aliases.get("openhuman.legacy_literal").map(String::as_str),
-            Some("openhuman.literal_target")
+            aliases.get("Benito.legacy_literal").map(String::as_str),
+            Some("Benito.literal_target")
         );
     }
 
     #[test]
     #[should_panic(expected = "legacy alias references unknown CORE_RPC_METHODS")]
     fn parse_frontend_legacy_aliases_panics_on_unknown_core_method_ref() {
-        let source = "export const CORE_RPC_METHODS = {\n  alphaMethod: 'openhuman.alpha',\n} as const;\n\nexport const LEGACY_METHOD_ALIASES: Record<string, CoreRpcMethod> = {\n  'openhuman.legacy_alpha': CORE_RPC_METHODS.doesNotExist,\n};\n";
+        let source = "export const CORE_RPC_METHODS = {\n  alphaMethod: 'Benito.alpha',\n} as const;\n\nexport const LEGACY_METHOD_ALIASES: Record<string, CoreRpcMethod> = {\n  'Benito.legacy_alpha': CORE_RPC_METHODS.doesNotExist,\n};\n";
         let core_methods = parse_core_rpc_methods(source);
         let _ = parse_frontend_legacy_aliases(source, &core_methods);
     }
@@ -339,19 +339,19 @@ mod tests {
     #[test]
     fn resolve_legacy_rewrites_composio_trigger_settings() {
         // The specific case observed in Sentry: older bundles called the
-        // bare `openhuman.update_composio_trigger_settings` against a core
+        // bare `Benito.update_composio_trigger_settings` against a core
         // that only registers the namespaced form.
         assert_eq!(
-            resolve_legacy("openhuman.update_composio_trigger_settings"),
-            "openhuman.config_update_composio_trigger_settings",
+            resolve_legacy("Benito.update_composio_trigger_settings"),
+            "Benito.config_update_composio_trigger_settings",
         );
     }
 
     #[test]
     fn resolve_legacy_passes_through_unknown_methods() {
         assert_eq!(
-            resolve_legacy("openhuman.memory_list_namespaces"),
-            "openhuman.memory_list_namespaces"
+            resolve_legacy("Benito.memory_list_namespaces"),
+            "Benito.memory_list_namespaces"
         );
         assert_eq!(resolve_legacy("does.not.exist"), "does.not.exist");
         assert_eq!(resolve_legacy(""), "");
@@ -375,7 +375,7 @@ mod tests {
     fn resolve_legacy_returned_str_equals_table_value() {
         // Sanity check: the function returns the canonical str slice from
         // the table when it matches, not a copy of the input.
-        let out = resolve_legacy("openhuman.ping");
+        let out = resolve_legacy("Benito.ping");
         assert_eq!(out, "core.ping");
     }
 

@@ -1,4 +1,4 @@
-use serde_json::Map;
+﻿use serde_json::Map;
 
 use super::*;
 use crate::core::{ControllerSchema, FieldSchema, TypeSchema};
@@ -88,7 +88,7 @@ fn validate_registry_accepts_valid_registry() {
 #[test]
 fn rpc_method_name_formats_correctly() {
     let s = schema("memory", "doc_put", vec![]);
-    assert_eq!(rpc_method_name(&s), "openhuman.memory_doc_put");
+    assert_eq!(rpc_method_name(&s), "Benito.memory_doc_put");
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn registered_controller_rpc_method_name() {
         schema: s,
         handler: noop_handler,
     };
-    assert_eq!(rc.rpc_method_name(), "openhuman.billing_get_balance");
+    assert_eq!(rc.rpc_method_name(), "Benito.billing_get_balance");
 }
 
 #[test]
@@ -189,7 +189,7 @@ fn all_controller_schemas_matches_registered_count() {
 
 #[test]
 fn schema_for_rpc_method_finds_known_method() {
-    let schema = schema_for_rpc_method("openhuman.health_snapshot");
+    let schema = schema_for_rpc_method("Benito.health_snapshot");
     assert!(schema.is_some(), "health.snapshot should be findable");
     let s = schema.unwrap();
     assert_eq!(s.namespace, "health");
@@ -198,7 +198,7 @@ fn schema_for_rpc_method_finds_known_method() {
 
 #[test]
 fn schema_for_rpc_method_finds_security_policy_info() {
-    let schema = schema_for_rpc_method("openhuman.security_policy_info");
+    let schema = schema_for_rpc_method("Benito.security_policy_info");
     assert!(schema.is_some(), "security.policy_info should be findable");
     let s = schema.unwrap();
     assert_eq!(s.namespace, "security");
@@ -207,13 +207,13 @@ fn schema_for_rpc_method_finds_security_policy_info() {
 
 #[test]
 fn schema_for_rpc_method_returns_none_for_unknown() {
-    assert!(schema_for_rpc_method("openhuman.nonexistent_method_xyz").is_none());
+    assert!(schema_for_rpc_method("Benito.nonexistent_method_xyz").is_none());
 }
 
 #[test]
 fn rpc_method_from_parts_finds_known() {
     let method = rpc_method_from_parts("health", "snapshot");
-    assert_eq!(method.as_deref(), Some("openhuman.health_snapshot"));
+    assert_eq!(method.as_deref(), Some("Benito.health_snapshot"));
 }
 
 #[test]
@@ -368,7 +368,7 @@ fn validate_registry_rejects_empty_function() {
 #[test]
 fn validate_registry_rejects_whitespace_only_namespace() {
     // `trim().is_empty()` is the invariant — a namespace of "   " must
-    // be rejected to prevent `openhuman.   _fn` nonsense RPC method names.
+    // be rejected to prevent `Benito.   _fn` nonsense RPC method names.
     let declared = vec![schema("   ", "fn", vec![])];
     let registered = vec![RegisteredController {
         schema: declared[0].clone(),
@@ -419,21 +419,21 @@ fn validate_registry_rejects_duplicate_registered_controllers() {
 
 #[tokio::test]
 async fn try_invoke_registered_rpc_returns_none_for_unknown_method() {
-    let out = try_invoke_registered_rpc("openhuman.not_a_real_method_xyz_123", Map::new()).await;
+    let out = try_invoke_registered_rpc("Benito.not_a_real_method_xyz_123", Map::new()).await;
     assert!(out.is_none(), "unknown methods must return None");
 }
 
 #[tokio::test]
 async fn try_invoke_registered_rpc_returns_some_for_known_method() {
-    // `openhuman.health_snapshot` is registered at startup and takes no
+    // `Benito.health_snapshot` is registered at startup and takes no
     // required params — it must route and produce Some(_).
-    let out = try_invoke_registered_rpc("openhuman.health_snapshot", Map::new()).await;
+    let out = try_invoke_registered_rpc("Benito.health_snapshot", Map::new()).await;
     assert!(out.is_some(), "known method must route");
 }
 
 #[tokio::test]
 async fn try_invoke_registered_rpc_routes_security_policy_info() {
-    let out = try_invoke_registered_rpc("openhuman.security_policy_info", Map::new())
+    let out = try_invoke_registered_rpc("Benito.security_policy_info", Map::new())
         .await
         .expect("security policy info should be registered")
         .expect("security policy info should succeed");
@@ -449,7 +449,7 @@ fn rpc_method_name_handles_multi_underscore_function() {
     // Functions often contain underscores — the RPC method name must
     // preserve them verbatim, separated from the namespace with `_`.
     let s = schema("team", "change_member_role", vec![]);
-    assert_eq!(rpc_method_name(&s), "openhuman.team_change_member_role");
+    assert_eq!(rpc_method_name(&s), "Benito.team_change_member_role");
 }
 
 #[test]

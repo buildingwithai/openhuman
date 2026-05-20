@@ -1,13 +1,13 @@
-//! Base URL and defaults for the TinyHumans / AlphaHuman hosted API.
+﻿//! Base URL and defaults for the TinyHumans / AlphaHuman hosted API.
 
 /// Default API host when `config.api_url` is unset or blank and no env override is set.
 pub const DEFAULT_API_BASE_URL: &str = "https://api.tinyhumans.ai";
 /// Default staging API host when the app environment is explicitly `staging`.
 pub const DEFAULT_STAGING_API_BASE_URL: &str = "https://staging-api.tinyhumans.ai";
 /// Primary app-environment selector used by the core and desktop app.
-pub const APP_ENV_VAR: &str = "OPENHUMAN_APP_ENV";
+pub const APP_ENV_VAR: &str = "BENITO_APP_ENV";
 /// Vite-exposed app-environment selector used by the frontend bundle.
-pub const VITE_APP_ENV_VAR: &str = "VITE_OPENHUMAN_APP_ENV";
+pub const VITE_APP_ENV_VAR: &str = "VITE_BENITO_APP_ENV";
 
 /// Resolves the hosted API base URL (no path suffix).
 ///
@@ -17,10 +17,10 @@ pub const VITE_APP_ENV_VAR: &str = "VITE_OPENHUMAN_APP_ENV";
 /// 3. `BACKEND_URL` / `VITE_BACKEND_URL` baked in at compile time via `option_env!`
 /// 4. Environment-aware default: `app_env_from_env()` == `staging` →
 ///    [`DEFAULT_STAGING_API_BASE_URL`], otherwise [`DEFAULT_API_BASE_URL`]
-/// Default path the OpenHuman backend exposes for its OpenAI-compatible
+/// Default path the Benito backend exposes for its OpenAI-compatible
 /// inference proxy. Joined onto [`effective_api_url`] when the user has not
 /// configured a custom `inference_url`.
-pub const OPENHUMAN_INFERENCE_PATH: &str = "/openai/v1/chat/completions";
+pub const BENITO_INFERENCE_PATH: &str = "/openai/v1/chat/completions";
 
 /// Resolves the LLM inference endpoint to call.
 ///
@@ -28,7 +28,7 @@ pub const OPENHUMAN_INFERENCE_PATH: &str = "/openai/v1/chat/completions";
 /// 1. `config.inference_url` when set (user pointed inference at a custom
 ///    OpenAI-compatible endpoint — e.g. `https://api.openai.com/v1/chat/completions`).
 /// 2. Otherwise `effective_api_url(api_url)` joined with `/openai/v1/chat/completions`
-///    via the safe [`api_url`] helper, so inference flows through the OpenHuman
+///    via the safe [`api_url`] helper, so inference flows through the Benito
 ///    backend's OpenAI-compat proxy.
 ///
 /// This split is what keeps account/auth/billing calls (always `effective_api_url`)
@@ -48,7 +48,7 @@ pub fn effective_inference_url(
     }
     api_url(
         &effective_api_url(api_url_override),
-        OPENHUMAN_INFERENCE_PATH,
+        BENITO_INFERENCE_PATH,
     )
 }
 
@@ -69,7 +69,7 @@ pub fn effective_api_url(api_url: &Option<String>) -> String {
 /// Used by [`effective_backend_api_url`] to avoid concatenating
 /// backend-integration paths (e.g. `/agent-integrations/composio/toolkits`)
 /// onto a user-set local-AI URL — see the Sentry cluster
-/// `OPENHUMAN-TAURI-51 / -80 / -7Z` where Ollama users had every integration
+/// `Benito-TAURI-51 / -80 / -7Z` where Ollama users had every integration
 /// request 404 because `config.api_url` was reused as both the chat base AND
 /// the integrations base.
 ///
@@ -145,14 +145,14 @@ pub fn looks_like_local_ai_endpoint(url: &str) -> bool {
     port_signals_llm || path_signals_llm
 }
 
-fn looks_like_openhuman_backend_endpoint(url: &str) -> bool {
+fn looks_like_BENITO_backend_endpoint(url: &str) -> bool {
     let trimmed = url.trim();
     let redacted_url = redact_url_for_log(trimmed);
     let parsed = match url::Url::parse(trimmed) {
         Ok(parsed) => {
             tracing::trace!(
                 api_url = %redacted_url,
-                "[api/config] parsed api_url while checking OpenHuman backend classification"
+                "[api/config] parsed api_url while checking Benito backend classification"
             );
             parsed
         }
@@ -160,7 +160,7 @@ fn looks_like_openhuman_backend_endpoint(url: &str) -> bool {
             tracing::trace!(
                 api_url = %redacted_url,
                 error = %error,
-                "[api/config] api_url parse failed while checking OpenHuman backend classification"
+                "[api/config] api_url parse failed while checking Benito backend classification"
             );
             return false;
         }
@@ -168,21 +168,21 @@ fn looks_like_openhuman_backend_endpoint(url: &str) -> bool {
     let Some(host) = parsed.host_str().map(str::to_ascii_lowercase) else {
         tracing::trace!(
             api_url = %redacted_url,
-            "[api/config] api_url has no host; not classified as OpenHuman backend"
+            "[api/config] api_url has no host; not classified as Benito backend"
         );
         return false;
     };
-    let is_openhuman_backend = matches!(
+    let is_BENITO_backend = matches!(
         host.as_str(),
         "api.tinyhumans.ai" | "staging-api.tinyhumans.ai"
     );
     tracing::debug!(
         api_url = %redacted_url,
         host = %host,
-        is_openhuman_backend,
-        "[api/config] OpenHuman backend classification complete"
+        is_BENITO_backend,
+        "[api/config] Benito backend classification complete"
     );
-    is_openhuman_backend
+    is_BENITO_backend
 }
 
 /// Resolves the API base URL for **all hosted-backend calls** (billing,
@@ -195,7 +195,7 @@ fn looks_like_openhuman_backend_endpoint(url: &str) -> bool {
 /// the hosted API instead of being concatenated onto the user's local
 /// Ollama/vLLM endpoint (which only knows about chat completions and
 /// 404s every other path — see the Sentry cluster
-/// `OPENHUMAN-TAURI-51 / -80 / -7Z`).
+/// `Benito-TAURI-51 / -80 / -7Z`).
 ///
 /// Logs a one-shot `warn!` the first time the fallback fires so users
 /// can see the diagnostic in their core sidecar logs.
@@ -203,14 +203,14 @@ pub fn effective_backend_api_url(api_url: &Option<String>) -> String {
     if let Some(u) = api_url.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         let redacted_url = redact_url_for_log(u);
         let is_local_ai = looks_like_local_ai_endpoint(u);
-        let is_openhuman_backend = looks_like_openhuman_backend_endpoint(u);
+        let is_BENITO_backend = looks_like_BENITO_backend_endpoint(u);
         tracing::debug!(
             api_url = %redacted_url,
             is_local_ai,
-            is_openhuman_backend,
+            is_BENITO_backend,
             "[api/config] evaluating backend api_url override"
         );
-        if is_local_ai && !is_openhuman_backend {
+        if is_local_ai && !is_BENITO_backend {
             tracing::debug!(
                 api_url = %redacted_url,
                 "[api/config] backend api_url override classified as local AI; falling back to backend default chain"
@@ -231,7 +231,7 @@ pub fn effective_backend_api_url(api_url: &Option<String>) -> String {
         // Strip any inference-style path that slipped through the env /
         // compile-time bake (`BACKEND_URL=https://api.tinyhumans.ai/openai/v1/chat/completions`
         // produces a backend base that 404s every domain path — see Sentry
-        // `OPENHUMAN-TAURI-H6 / -HN`, issue #2075). The override branch
+        // `Benito-TAURI-H6 / -HN`, issue #2075). The override branch
         // above already normalizes; without normalizing here the env path
         // silently bypassed it.
         return normalize_backend_api_base_url(&env_url);
@@ -256,7 +256,7 @@ pub(crate) fn normalize_backend_api_base_url(url: &str) -> String {
     // before the value is used as a base. Without this fallback, a
     // scheme-less override carrying an inference path fell straight
     // through to `api_url()` + `fallback_concat()`, reproducing the
-    // exact 404 URLs in Sentry `OPENHUMAN-TAURI-H6 / -HN` (issue #2075).
+    // exact 404 URLs in Sentry `Benito-TAURI-H6 / -HN` (issue #2075).
     let parsed =
         url::Url::parse(&normalized).or_else(|_| url::Url::parse(&format!("https://{normalized}")));
     let Ok(mut parsed) = parsed else {
@@ -420,8 +420,8 @@ pub fn app_env_from_env() -> Option<String> {
 #[cfg(not(test))]
 fn compile_time_app_env_values() -> [Option<&'static str>; 2] {
     [
-        option_env!("OPENHUMAN_APP_ENV"),
-        option_env!("VITE_OPENHUMAN_APP_ENV"),
+        option_env!("BENITO_APP_ENV"),
+        option_env!("VITE_BENITO_APP_ENV"),
     ]
 }
 
@@ -726,17 +726,17 @@ mod tests {
     }
 
     #[test]
-    fn openhuman_backend_endpoint_detection_accepts_hosted_api_paths() {
-        assert!(looks_like_openhuman_backend_endpoint(
+    fn BENITO_backend_endpoint_detection_accepts_hosted_api_paths() {
+        assert!(looks_like_BENITO_backend_endpoint(
             "https://api.tinyhumans.ai/openai/v1/chat/completions"
         ));
-        assert!(looks_like_openhuman_backend_endpoint(
+        assert!(looks_like_BENITO_backend_endpoint(
             "https://staging-api.tinyhumans.ai/openai/v1/chat/completions"
         ));
-        assert!(!looks_like_openhuman_backend_endpoint(
+        assert!(!looks_like_BENITO_backend_endpoint(
             "https://openrouter.ai/api/v1/chat/completions"
         ));
-        assert!(!looks_like_openhuman_backend_endpoint(
+        assert!(!looks_like_BENITO_backend_endpoint(
             "http://localhost:1234/v1/chat/completions"
         ));
     }
@@ -967,7 +967,7 @@ mod tests {
 
     #[test]
     fn effective_backend_api_url_strips_inference_path_from_env() {
-        // Regression for issue #2075 / Sentry OPENHUMAN-TAURI-H6, -HN: a
+        // Regression for issue #2075 / Sentry Benito-TAURI-H6, -HN: a
         // misconfigured `BACKEND_URL` baked an inference path into the
         // env-fallback branch, which silently fell through to integration
         // callers as e.g.

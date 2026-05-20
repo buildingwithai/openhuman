@@ -1,4 +1,4 @@
-//! Registry and dispatch logic for all OpenHuman controllers.
+﻿//! Registry and dispatch logic for all Benito controllers.
 //!
 //! This module serves as the central hub for registering domain-specific
 //! controllers (e.g., memory, skills, config) and providing a unified
@@ -40,7 +40,7 @@ pub struct RegisteredController {
 }
 
 impl RegisteredController {
-    /// Returns the canonical RPC method name for this controller (e.g., `openhuman.memory_doc_put`).
+    /// Returns the canonical RPC method name for this controller (e.g., `Benito.memory_doc_put`).
     pub fn rpc_method_name(&self) -> String {
         rpc_method_name(&self.schema)
     }
@@ -89,7 +89,7 @@ fn cli_adapters() -> &'static [RegisteredCliAdapter] {
     CLI_ADAPTERS.get_or_init(|| {
         vec![RegisteredCliAdapter {
             namespace: "voice",
-            handler: crate::openhuman::voice::cli::run_standalone_subcommand,
+            handler: crate::benito::voice::cli::run_standalone_subcommand,
         }]
     })
 }
@@ -105,150 +105,150 @@ fn cli_adapters() -> &'static [RegisteredCliAdapter] {
 fn build_registered_controllers() -> Vec<RegisteredController> {
     let mut controllers = Vec::new();
     // Application information and capabilities
-    controllers.extend(crate::openhuman::about_app::all_about_app_registered_controllers());
+    controllers.extend(crate::benito::about_app::all_about_app_registered_controllers());
     // Core application shell state
-    controllers.extend(crate::openhuman::app_state::all_app_state_registered_controllers());
+    controllers.extend(crate::benito::app_state::all_app_state_registered_controllers());
     // Audio generation + podcast-style email delivery
-    controllers.extend(crate::openhuman::audio_toolkit::all_audio_toolkit_registered_controllers());
+    controllers.extend(crate::benito::audio_toolkit::all_audio_toolkit_registered_controllers());
     // Composio integration controllers
-    controllers.extend(crate::openhuman::composio::all_composio_registered_controllers());
+    controllers.extend(crate::benito::composio::all_composio_registered_controllers());
     // Scheduled job management
-    controllers.extend(crate::openhuman::cron::all_cron_registered_controllers());
+    controllers.extend(crate::benito::cron::all_cron_registered_controllers());
     // Webview APIs bridge — proxies connector calls (Gmail, …) through
     // a WebSocket to the Tauri shell so curl reaches the live webview.
-    controllers.extend(crate::openhuman::webview_apis::all_webview_apis_registered_controllers());
+    controllers.extend(crate::benito::webview_apis::all_webview_apis_registered_controllers());
     // Agent definition and prompt inspection
-    controllers.extend(crate::openhuman::agent::all_agent_registered_controllers());
+    controllers.extend(crate::benito::agent::all_agent_registered_controllers());
     // Local procedural operating experience for agent self-learning
     controllers
-        .extend(crate::openhuman::agent_experience::all_agent_experience_registered_controllers());
+        .extend(crate::benito::agent_experience::all_agent_experience_registered_controllers());
     // System and process health monitoring
-    controllers.extend(crate::openhuman::health::all_health_registered_controllers());
+    controllers.extend(crate::benito::health::all_health_registered_controllers());
     // Diagnostic tools
-    controllers.extend(crate::openhuman::doctor::all_doctor_registered_controllers());
+    controllers.extend(crate::benito::doctor::all_doctor_registered_controllers());
     // Secret storage and encryption
-    controllers.extend(crate::openhuman::encryption::all_encryption_registered_controllers());
+    controllers.extend(crate::benito::encryption::all_encryption_registered_controllers());
     // Security policy metadata
-    controllers.extend(crate::openhuman::security::all_security_registered_controllers());
+    controllers.extend(crate::benito::security::all_security_registered_controllers());
     // Interactive approval workflow (#1339 — gate external-effect tool calls)
-    controllers.extend(crate::openhuman::approval::all_approval_registered_controllers());
+    controllers.extend(crate::benito::approval::all_approval_registered_controllers());
     // Background heartbeat loop controls
-    controllers.extend(crate::openhuman::heartbeat::all_heartbeat_registered_controllers());
+    controllers.extend(crate::benito::heartbeat::all_heartbeat_registered_controllers());
     // Ad-hoc static directory HTTP hosting for local file sharing / previews
-    controllers.extend(crate::openhuman::http_host::all_http_host_registered_controllers());
+    controllers.extend(crate::benito::http_host::all_http_host_registered_controllers());
     // Token usage and billing cost tracking
-    controllers.extend(crate::openhuman::cost::all_cost_registered_controllers());
+    controllers.extend(crate::benito::cost::all_cost_registered_controllers());
     // Inline autocomplete settings
-    controllers.extend(crate::openhuman::autocomplete::all_autocomplete_registered_controllers());
+    controllers.extend(crate::benito::autocomplete::all_autocomplete_registered_controllers());
     // External messaging channels (Web, Telegram, etc.)
     controllers.extend(
-        crate::openhuman::channels::providers::web::all_web_channel_registered_controllers(),
+        crate::benito::channels::providers::web::all_web_channel_registered_controllers(),
     );
     controllers
-        .extend(crate::openhuman::channels::controllers::all_channels_registered_controllers());
+        .extend(crate::benito::channels::controllers::all_channels_registered_controllers());
     // Persistent configuration management
-    controllers.extend(crate::openhuman::config::all_config_registered_controllers());
+    controllers.extend(crate::benito::config::all_config_registered_controllers());
     // Local sidecar reachability + backend Socket.IO state diagnostics (#1527)
-    controllers.extend(crate::openhuman::connectivity::all_connectivity_registered_controllers());
+    controllers.extend(crate::benito::connectivity::all_connectivity_registered_controllers());
     // User credentials and session management
-    controllers.extend(crate::openhuman::credentials::all_credentials_registered_controllers());
+    controllers.extend(crate::benito::credentials::all_credentials_registered_controllers());
     // Desktop service management
-    controllers.extend(crate::openhuman::service::all_service_registered_controllers());
+    controllers.extend(crate::benito::service::all_service_registered_controllers());
     // Data migration utilities
-    controllers.extend(crate::openhuman::migration::all_migration_registered_controllers());
+    controllers.extend(crate::benito::migration::all_migration_registered_controllers());
     // Unified inference domain: text / vision / embedding / local runtime / cloud providers.
     // (Formerly split across inference, local_ai, and providers namespaces.)
-    controllers.extend(crate::openhuman::inference::all_inference_registered_controllers());
-    controllers.extend(crate::openhuman::inference::all_local_ai_registered_controllers());
+    controllers.extend(crate::benito::inference::all_inference_registered_controllers());
+    controllers.extend(crate::benito::inference::all_local_ai_registered_controllers());
     // People resolution and interaction scoring
-    controllers.extend(crate::openhuman::people::all_people_registered_controllers());
+    controllers.extend(crate::benito::people::all_people_registered_controllers());
     // Screen capture and UI analysis
     controllers.extend(
-        crate::openhuman::screen_intelligence::all_screen_intelligence_registered_controllers(),
+        crate::benito::screen_intelligence::all_screen_intelligence_registered_controllers(),
     );
     // Backend Socket.IO bridge + related runtime plumbing
-    controllers.extend(crate::openhuman::socket::all_socket_registered_controllers());
+    controllers.extend(crate::benito::socket::all_socket_registered_controllers());
     // Managed Node.js runtime bridge (tool listing + dispatch)
-    controllers.extend(crate::openhuman::javascript::all_javascript_registered_controllers());
+    controllers.extend(crate::benito::javascript::all_javascript_registered_controllers());
     // Discovered SKILL.md skills and their bundled resources
-    controllers.extend(crate::openhuman::skills::all_skills_registered_controllers());
+    controllers.extend(crate::benito::skills::all_skills_registered_controllers());
     // User workspace and file management
-    controllers.extend(crate::openhuman::workspace::all_workspace_registered_controllers());
+    controllers.extend(crate::benito::workspace::all_workspace_registered_controllers());
     // Knowledge vaults — folder-of-files mirrored into memory
-    controllers.extend(crate::openhuman::vault::all_vault_registered_controllers());
+    controllers.extend(crate::benito::vault::all_vault_registered_controllers());
     // Skill tool registry
-    controllers.extend(crate::openhuman::tools::all_tools_registered_controllers());
+    controllers.extend(crate::benito::tools::all_tools_registered_controllers());
     // Unified read-only registry across MCP stdio tools and controller-backed tools
-    controllers.extend(crate::openhuman::tool_registry::all_tool_registry_registered_controllers());
+    controllers.extend(crate::benito::tool_registry::all_tool_registry_registered_controllers());
     // Document and knowledge graph storage
-    controllers.extend(crate::openhuman::memory::all_memory_registered_controllers());
+    controllers.extend(crate::benito::memory::all_memory_registered_controllers());
     // Memory tree ingestion layer (#707 — canonicalised chunks with provenance)
-    controllers.extend(crate::openhuman::memory::all_memory_tree_registered_controllers());
+    controllers.extend(crate::benito::memory::all_memory_tree_registered_controllers());
     // Memory tree retrieval layer (#710 — LLM-callable read tools over the tree)
-    controllers.extend(crate::openhuman::memory::all_retrieval_registered_controllers());
+    controllers.extend(crate::benito::memory::all_retrieval_registered_controllers());
     // Slack → memory-tree ingestion engine (per-message ingest, no bucketing)
     controllers.extend(
-        crate::openhuman::composio::providers::slack::all_slack_memory_registered_controllers(),
+        crate::benito::composio::providers::slack::all_slack_memory_registered_controllers(),
     );
     // Per-connection memory sync status, controls, and progress (#1136)
-    controllers.extend(crate::openhuman::memory::all_memory_sync_status_registered_controllers());
+    controllers.extend(crate::benito::memory::all_memory_sync_status_registered_controllers());
     // Link shortener for long tracking URLs — saves LLM tokens
     controllers
-        .extend(crate::openhuman::redirect_links::all_redirect_links_registered_controllers());
+        .extend(crate::benito::redirect_links::all_redirect_links_registered_controllers());
     // Referral and growth tracking
-    controllers.extend(crate::openhuman::referral::all_referral_registered_controllers());
+    controllers.extend(crate::benito::referral::all_referral_registered_controllers());
     // Billing and subscription management
-    controllers.extend(crate::openhuman::billing::all_billing_registered_controllers());
+    controllers.extend(crate::benito::billing::all_billing_registered_controllers());
     // Team and role management
-    controllers.extend(crate::openhuman::team::all_team_registered_controllers());
-    // E2E test support — `openhuman.test_reset` wipes sidecar state in-place.
+    controllers.extend(crate::benito::team::all_team_registered_controllers());
+    // E2E test support — `Benito.test_reset` wipes sidecar state in-place.
     // Gated behind the `e2e-test-support` cargo feature so shipped binaries
     // never even register the destructive wipe RPC. Flipped on by the E2E
     // build script (app/scripts/e2e-build.sh).
     #[cfg(feature = "e2e-test-support")]
-    controllers.extend(crate::openhuman::test_support::all_test_support_registered_controllers());
+    controllers.extend(crate::benito::test_support::all_test_support_registered_controllers());
     // Local wallet metadata and onboarding status
-    controllers.extend(crate::openhuman::wallet::all_wallet_registered_controllers());
+    controllers.extend(crate::benito::wallet::all_wallet_registered_controllers());
     // Local assistive surfaces over third-party provider apps
     controllers.extend(
-        crate::openhuman::provider_surfaces::all_provider_surfaces_registered_controllers(),
+        crate::benito::provider_surfaces::all_provider_surfaces_registered_controllers(),
     );
     // OS-level text input interactions
-    controllers.extend(crate::openhuman::text_input::all_text_input_registered_controllers());
+    controllers.extend(crate::benito::text_input::all_text_input_registered_controllers());
     // Voice transcription and synthesis
-    controllers.extend(crate::openhuman::voice::all_voice_registered_controllers());
+    controllers.extend(crate::benito::voice::all_voice_registered_controllers());
     // Background awareness and autonomous tasks
-    controllers.extend(crate::openhuman::subconscious::all_subconscious_registered_controllers());
+    controllers.extend(crate::benito::subconscious::all_subconscious_registered_controllers());
     // Webhook tunnel management
-    controllers.extend(crate::openhuman::webhooks::all_webhooks_registered_controllers());
+    controllers.extend(crate::benito::webhooks::all_webhooks_registered_controllers());
     // Core binary update management
-    controllers.extend(crate::openhuman::update::all_update_registered_controllers());
+    controllers.extend(crate::benito::update::all_update_registered_controllers());
     // Hierarchical knowledge summarization
     controllers
-        .extend(crate::openhuman::tree_summarizer::all_tree_summarizer_registered_controllers());
+        .extend(crate::benito::tree_summarizer::all_tree_summarizer_registered_controllers());
     // Self-learning and user context enrichment
-    controllers.extend(crate::openhuman::learning::all_learning_registered_controllers());
+    controllers.extend(crate::benito::learning::all_learning_registered_controllers());
     // Conversation thread and message management
-    controllers.extend(crate::openhuman::threads::all_threads_registered_controllers());
+    controllers.extend(crate::benito::threads::all_threads_registered_controllers());
     // Per-thread todo list (agent task board CRUD over RPC)
-    controllers.extend(crate::openhuman::todos::all_todos_registered_controllers());
+    controllers.extend(crate::benito::todos::all_todos_registered_controllers());
     // Embedded webview native notifications
     controllers.extend(
-        crate::openhuman::webview_notifications::all_webview_notifications_registered_controllers(),
+        crate::benito::webview_notifications::all_webview_notifications_registered_controllers(),
     );
     // Integration notification ingest, triage, and per-provider settings
-    controllers.extend(crate::openhuman::notifications::all_notifications_registered_controllers());
+    controllers.extend(crate::benito::notifications::all_notifications_registered_controllers());
     // Google Meet call-join request validation (shell handles the webview)
-    controllers.extend(crate::openhuman::meet::all_meet_registered_controllers());
+    controllers.extend(crate::benito::meet::all_meet_registered_controllers());
     // Live meet-agent loop: STT/LLM/TTS over the open call's audio.
-    controllers.extend(crate::openhuman::meet_agent::all_meet_agent_registered_controllers());
+    controllers.extend(crate::benito::meet_agent::all_meet_agent_registered_controllers());
     // Desktop companion — Clicky-style interaction loop.
     controllers.extend(
-        crate::openhuman::desktop_companion::all_desktop_companion_registered_controllers(),
+        crate::benito::desktop_companion::all_desktop_companion_registered_controllers(),
     );
     // Structured WhatsApp Web data — agent-facing read-only controllers (list/search).
     // The write-path ingest controller is registered separately in build_internal_only_controllers.
-    controllers.extend(crate::openhuman::whatsapp_data::all_whatsapp_data_registered_controllers());
+    controllers.extend(crate::benito::whatsapp_data::all_whatsapp_data_registered_controllers());
     controllers
 }
 
@@ -260,7 +260,7 @@ fn build_internal_only_controllers() -> Vec<RegisteredController> {
     let mut controllers = Vec::new();
     // whatsapp_data ingest: scanner-side write path.  Callable over RPC by the
     // Tauri scanner but excluded from agent-facing schema discovery.
-    controllers.extend(crate::openhuman::whatsapp_data::all_whatsapp_data_internal_controllers());
+    controllers.extend(crate::benito::whatsapp_data::all_whatsapp_data_internal_controllers());
     controllers
 }
 
@@ -270,84 +270,84 @@ fn build_internal_only_controllers() -> Vec<RegisteredController> {
 /// (schema) for each controller. This is used for discovery and validation.
 fn build_declared_controller_schemas() -> Vec<ControllerSchema> {
     let mut schemas = Vec::new();
-    schemas.extend(crate::openhuman::about_app::all_about_app_controller_schemas());
-    schemas.extend(crate::openhuman::app_state::all_app_state_controller_schemas());
-    schemas.extend(crate::openhuman::audio_toolkit::all_audio_toolkit_controller_schemas());
-    schemas.extend(crate::openhuman::composio::all_composio_controller_schemas());
-    schemas.extend(crate::openhuman::cron::all_cron_controller_schemas());
-    schemas.extend(crate::openhuman::webview_apis::all_webview_apis_controller_schemas());
-    schemas.extend(crate::openhuman::agent::all_agent_controller_schemas());
-    schemas.extend(crate::openhuman::agent_experience::all_agent_experience_controller_schemas());
-    schemas.extend(crate::openhuman::health::all_health_controller_schemas());
-    schemas.extend(crate::openhuman::doctor::all_doctor_controller_schemas());
-    schemas.extend(crate::openhuman::encryption::all_encryption_controller_schemas());
-    schemas.extend(crate::openhuman::security::all_security_controller_schemas());
-    schemas.extend(crate::openhuman::approval::all_approval_controller_schemas());
-    schemas.extend(crate::openhuman::heartbeat::all_heartbeat_controller_schemas());
-    schemas.extend(crate::openhuman::http_host::all_http_host_controller_schemas());
-    schemas.extend(crate::openhuman::cost::all_cost_controller_schemas());
-    schemas.extend(crate::openhuman::autocomplete::all_autocomplete_controller_schemas());
+    schemas.extend(crate::benito::about_app::all_about_app_controller_schemas());
+    schemas.extend(crate::benito::app_state::all_app_state_controller_schemas());
+    schemas.extend(crate::benito::audio_toolkit::all_audio_toolkit_controller_schemas());
+    schemas.extend(crate::benito::composio::all_composio_controller_schemas());
+    schemas.extend(crate::benito::cron::all_cron_controller_schemas());
+    schemas.extend(crate::benito::webview_apis::all_webview_apis_controller_schemas());
+    schemas.extend(crate::benito::agent::all_agent_controller_schemas());
+    schemas.extend(crate::benito::agent_experience::all_agent_experience_controller_schemas());
+    schemas.extend(crate::benito::health::all_health_controller_schemas());
+    schemas.extend(crate::benito::doctor::all_doctor_controller_schemas());
+    schemas.extend(crate::benito::encryption::all_encryption_controller_schemas());
+    schemas.extend(crate::benito::security::all_security_controller_schemas());
+    schemas.extend(crate::benito::approval::all_approval_controller_schemas());
+    schemas.extend(crate::benito::heartbeat::all_heartbeat_controller_schemas());
+    schemas.extend(crate::benito::http_host::all_http_host_controller_schemas());
+    schemas.extend(crate::benito::cost::all_cost_controller_schemas());
+    schemas.extend(crate::benito::autocomplete::all_autocomplete_controller_schemas());
     schemas
-        .extend(crate::openhuman::channels::providers::web::all_web_channel_controller_schemas());
-    schemas.extend(crate::openhuman::channels::controllers::all_channels_controller_schemas());
-    schemas.extend(crate::openhuman::config::all_config_controller_schemas());
-    schemas.extend(crate::openhuman::connectivity::all_connectivity_controller_schemas());
-    schemas.extend(crate::openhuman::credentials::all_credentials_controller_schemas());
-    schemas.extend(crate::openhuman::service::all_service_controller_schemas());
-    schemas.extend(crate::openhuman::migration::all_migration_controller_schemas());
-    schemas.extend(crate::openhuman::inference::all_inference_controller_schemas());
-    schemas.extend(crate::openhuman::inference::all_local_ai_controller_schemas());
-    schemas.extend(crate::openhuman::people::all_people_controller_schemas());
+        .extend(crate::benito::channels::providers::web::all_web_channel_controller_schemas());
+    schemas.extend(crate::benito::channels::controllers::all_channels_controller_schemas());
+    schemas.extend(crate::benito::config::all_config_controller_schemas());
+    schemas.extend(crate::benito::connectivity::all_connectivity_controller_schemas());
+    schemas.extend(crate::benito::credentials::all_credentials_controller_schemas());
+    schemas.extend(crate::benito::service::all_service_controller_schemas());
+    schemas.extend(crate::benito::migration::all_migration_controller_schemas());
+    schemas.extend(crate::benito::inference::all_inference_controller_schemas());
+    schemas.extend(crate::benito::inference::all_local_ai_controller_schemas());
+    schemas.extend(crate::benito::people::all_people_controller_schemas());
     schemas.extend(
-        crate::openhuman::screen_intelligence::all_screen_intelligence_controller_schemas(),
+        crate::benito::screen_intelligence::all_screen_intelligence_controller_schemas(),
     );
-    schemas.extend(crate::openhuman::socket::all_socket_controller_schemas());
-    schemas.extend(crate::openhuman::javascript::all_javascript_controller_schemas());
-    schemas.extend(crate::openhuman::skills::all_skills_controller_schemas());
-    schemas.extend(crate::openhuman::workspace::all_workspace_controller_schemas());
-    schemas.extend(crate::openhuman::vault::all_vault_controller_schemas());
-    schemas.extend(crate::openhuman::tools::all_tools_controller_schemas());
-    schemas.extend(crate::openhuman::tool_registry::all_tool_registry_controller_schemas());
-    schemas.extend(crate::openhuman::memory::all_memory_controller_schemas());
-    schemas.extend(crate::openhuman::memory::all_memory_tree_controller_schemas());
-    schemas.extend(crate::openhuman::memory::all_retrieval_controller_schemas());
+    schemas.extend(crate::benito::socket::all_socket_controller_schemas());
+    schemas.extend(crate::benito::javascript::all_javascript_controller_schemas());
+    schemas.extend(crate::benito::skills::all_skills_controller_schemas());
+    schemas.extend(crate::benito::workspace::all_workspace_controller_schemas());
+    schemas.extend(crate::benito::vault::all_vault_controller_schemas());
+    schemas.extend(crate::benito::tools::all_tools_controller_schemas());
+    schemas.extend(crate::benito::tool_registry::all_tool_registry_controller_schemas());
+    schemas.extend(crate::benito::memory::all_memory_controller_schemas());
+    schemas.extend(crate::benito::memory::all_memory_tree_controller_schemas());
+    schemas.extend(crate::benito::memory::all_retrieval_controller_schemas());
     schemas.extend(
-        crate::openhuman::composio::providers::slack::all_slack_memory_controller_schemas(),
+        crate::benito::composio::providers::slack::all_slack_memory_controller_schemas(),
     );
-    schemas.extend(crate::openhuman::memory::all_memory_sync_status_controller_schemas());
-    schemas.extend(crate::openhuman::redirect_links::all_redirect_links_controller_schemas());
-    schemas.extend(crate::openhuman::referral::all_referral_controller_schemas());
-    schemas.extend(crate::openhuman::billing::all_billing_controller_schemas());
-    schemas.extend(crate::openhuman::team::all_team_controller_schemas());
+    schemas.extend(crate::benito::memory::all_memory_sync_status_controller_schemas());
+    schemas.extend(crate::benito::redirect_links::all_redirect_links_controller_schemas());
+    schemas.extend(crate::benito::referral::all_referral_controller_schemas());
+    schemas.extend(crate::benito::billing::all_billing_controller_schemas());
+    schemas.extend(crate::benito::team::all_team_controller_schemas());
     #[cfg(feature = "e2e-test-support")]
-    schemas.extend(crate::openhuman::test_support::all_test_support_controller_schemas());
-    schemas.extend(crate::openhuman::wallet::all_wallet_controller_schemas());
-    schemas.extend(crate::openhuman::provider_surfaces::all_provider_surfaces_controller_schemas());
-    schemas.extend(crate::openhuman::text_input::all_text_input_controller_schemas());
-    schemas.extend(crate::openhuman::voice::all_voice_controller_schemas());
-    schemas.extend(crate::openhuman::subconscious::all_subconscious_controller_schemas());
-    schemas.extend(crate::openhuman::webhooks::all_webhooks_controller_schemas());
-    schemas.extend(crate::openhuman::update::all_update_controller_schemas());
-    schemas.extend(crate::openhuman::tree_summarizer::all_tree_summarizer_controller_schemas());
-    schemas.extend(crate::openhuman::learning::all_learning_controller_schemas());
+    schemas.extend(crate::benito::test_support::all_test_support_controller_schemas());
+    schemas.extend(crate::benito::wallet::all_wallet_controller_schemas());
+    schemas.extend(crate::benito::provider_surfaces::all_provider_surfaces_controller_schemas());
+    schemas.extend(crate::benito::text_input::all_text_input_controller_schemas());
+    schemas.extend(crate::benito::voice::all_voice_controller_schemas());
+    schemas.extend(crate::benito::subconscious::all_subconscious_controller_schemas());
+    schemas.extend(crate::benito::webhooks::all_webhooks_controller_schemas());
+    schemas.extend(crate::benito::update::all_update_controller_schemas());
+    schemas.extend(crate::benito::tree_summarizer::all_tree_summarizer_controller_schemas());
+    schemas.extend(crate::benito::learning::all_learning_controller_schemas());
     // Conversation thread and message management
-    schemas.extend(crate::openhuman::threads::all_threads_controller_schemas());
+    schemas.extend(crate::benito::threads::all_threads_controller_schemas());
     // Per-thread todo list (agent task board CRUD over RPC)
-    schemas.extend(crate::openhuman::todos::all_todos_controller_schemas());
+    schemas.extend(crate::benito::todos::all_todos_controller_schemas());
     // Embedded webview native notifications
     schemas.extend(
-        crate::openhuman::webview_notifications::all_webview_notifications_controller_schemas(),
+        crate::benito::webview_notifications::all_webview_notifications_controller_schemas(),
     );
     // Integration notification ingest, triage, and per-provider settings
-    schemas.extend(crate::openhuman::notifications::all_notifications_controller_schemas());
+    schemas.extend(crate::benito::notifications::all_notifications_controller_schemas());
     // Google Meet call-join request validation
-    schemas.extend(crate::openhuman::meet::all_meet_controller_schemas());
+    schemas.extend(crate::benito::meet::all_meet_controller_schemas());
     // Live meet-agent listening + speaking loop
-    schemas.extend(crate::openhuman::meet_agent::all_meet_agent_controller_schemas());
+    schemas.extend(crate::benito::meet_agent::all_meet_agent_controller_schemas());
     // Desktop companion — Clicky-style interaction loop.
-    schemas.extend(crate::openhuman::desktop_companion::all_desktop_companion_controller_schemas());
+    schemas.extend(crate::benito::desktop_companion::all_desktop_companion_controller_schemas());
     // Structured WhatsApp Web data — local SQLite store, agent-queryable
-    schemas.extend(crate::openhuman::whatsapp_data::all_whatsapp_data_controller_schemas());
+    schemas.extend(crate::benito::whatsapp_data::all_whatsapp_data_controller_schemas());
     schemas
 }
 
@@ -364,7 +364,7 @@ pub fn all_controller_schemas() -> Vec<ControllerSchema> {
 
 /// Generates a standardized RPC method name from a controller schema.
 pub fn rpc_method_name(schema: &ControllerSchema) -> String {
-    format!("openhuman.{}_{}", schema.namespace, schema.function)
+    format!("Benito.{}_{}", schema.namespace, schema.function)
 }
 
 /// Returns a human-readable description for a given namespace.
@@ -407,7 +407,7 @@ pub fn namespace_description(namespace: &str) -> Option<&'static str> {
             "Per-connection memory sync status, user enable toggle, and live progress for the desktop UI.",
         ),
         "redirect_links" => Some(
-            "Shorten long tracking URLs to `openhuman://link/<id>` placeholders (SQLite-backed) to save tokens in prompts, with round-trip rewrite helpers.",
+            "Shorten long tracking URLs to `Benito://link/<id>` placeholders (SQLite-backed) to save tokens in prompts, with round-trip rewrite helpers.",
         ),
         "referral" => Some("Referral codes, stats, and apply flows via the hosted backend API."),
         "billing" => Some("Subscription plan, payment links, and credit top-up via the backend."),
@@ -526,7 +526,7 @@ pub fn validate_params(
 /// Attempts to invoke a registered RPC method by name.
 ///
 /// Checks both the agent-facing controller registry and the internal-only registry,
-/// so scanner-side write paths (e.g. `openhuman.whatsapp_data_ingest`) are routable
+/// so scanner-side write paths (e.g. `Benito.whatsapp_data_ingest`) are routable
 /// even though they are not included in agent tool listings.
 ///
 /// Returns `None` if the method is not found in either registry.

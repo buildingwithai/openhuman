@@ -1,4 +1,4 @@
-//! Domain events for cross-module communication.
+﻿//! Domain events for cross-module communication.
 //!
 //! Events carry full payloads so subscribers have everything they need without
 //! secondary lookups. The broadcast channel clones each event per subscriber,
@@ -67,10 +67,10 @@ pub enum DomainEvent {
     MemoryRecalled { query: String, hit_count: usize },
     /// A memory sync was requested for a specific channel or all channels.
     ///
-    /// Published by `openhuman.memory_sync_channel` (channel_id = Some(...)) and
-    /// `openhuman.memory_sync_all` (channel_id = None). No consumers exist yet —
+    /// Published by `Benito.memory_sync_channel` (channel_id = Some(...)) and
+    /// `Benito.memory_sync_all` (channel_id = None). No consumers exist yet —
     /// this variant is a hook for future ingestion subscribers to react to pull
-    /// requests. See `src/openhuman/memory/ops.rs` for the RPC handlers.
+    /// requests. See `src/Benito/memory/ops.rs` for the RPC handlers.
     MemorySyncRequested { channel_id: Option<String> },
     /// A memory ingestion job started running on the local extraction LLM.
     /// Ingestion is singleton — this fires once, then a matching
@@ -233,7 +233,7 @@ pub enum DomainEvent {
     // ── Webhooks ────────────────────────────────────────────────────────
     /// An incoming webhook request from the transport layer, ready for routing.
     WebhookIncomingRequest {
-        request: crate::openhuman::webhooks::WebhookRequest,
+        request: crate::benito::webhooks::WebhookRequest,
         raw_data: serde_json::Value,
     },
     /// A webhook was received and routed to a skill.
@@ -314,7 +314,7 @@ pub enum DomainEvent {
 
     // ── Triage ──────────────────────────────────────────────────────────
     //
-    // Published by `crate::openhuman::agent::triage` when an external
+    // Published by `crate::benito::agent::triage` when an external
     // trigger (Composio webhook today, cron / webhook / other sources
     // later) has been classified by the trigger-triage agent. The
     // `source` field is a short slug like `"composio"` / `"cron"` so the
@@ -485,7 +485,7 @@ pub enum DomainEvent {
     /// method. Subscribers tear down the session and pause background
     /// LLM-bound work until the user signs back in.
     ///
-    /// `source` is a short slug (e.g. `"llm_provider.openhuman_backend"`,
+    /// `source` is a short slug (e.g. `"llm_provider.BENITO_backend"`,
     /// `"jsonrpc.invoke_method"`) so subscribers and logs can attribute
     /// the trigger. `reason` is the sanitized error message that caused
     /// detection (already redacted by the call site) — surfaced to logs,

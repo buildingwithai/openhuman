@@ -1,4 +1,4 @@
-# Event Bus
+﻿# Event Bus
 
 In-process pub/sub plus typed request/response. Owns the global `EventBus` singleton (built on `tokio::sync::broadcast`), the `DomainEvent` enum that names every cross-module event, the `NativeRegistry` (one-to-one typed dispatch keyed by method string with zero serialization), the `EventHandler` trait + `SubscriptionHandle` RAII guard, and the bundled `TracingSubscriber` debug logger. ~33 internal call sites — every domain that emits or consumes cross-module events lives here.
 
@@ -23,20 +23,20 @@ In-process pub/sub plus typed request/response. Owns the global `EventBus` singl
 
 - `tokio::sync::broadcast` for the broadcast channel.
 - `async_trait` and `tokio::task::JoinHandle` for handler plumbing.
-- No openhuman-domain dependencies — this module sits below every domain.
+- No Benito-domain dependencies — this module sits below every domain.
 
 ## Called by
 
 - ~33 sites across the workspace. Hot consumers:
-- `src/openhuman/agent/bus.rs`, `agent/triage/{events,evaluator,escalation}.rs`, `tools/impl/agent/{dispatch,spawn_subagent}.rs` — agent + sub-agent events.
-- `src/openhuman/memory/conversations/bus.rs` — conversation persistence subscriber.
-- `src/openhuman/channels/bus.rs` — `ChannelInboundSubscriber`.
-- `src/openhuman/cron/{bus,scheduler}.rs` — `CronDeliverySubscriber` + `CronJobTriggered` emission.
-- `src/openhuman/webhooks/bus.rs` — `WebhookRequestSubscriber`.
-- `src/openhuman/health/bus.rs` — health-event subscriber.
-- `src/openhuman/update/scheduler.rs` — update-cycle events.
-- `src/openhuman/tree_summarizer/{engine,bus}.rs` — async summarisation triggers.
-- `src/openhuman/composio/bus.rs`, `notifications/`, `learning/` — analytics fan-out.
+- `src/Benito/agent/bus.rs`, `agent/triage/{events,evaluator,escalation}.rs`, `tools/impl/agent/{dispatch,spawn_subagent}.rs` — agent + sub-agent events.
+- `src/Benito/memory/conversations/bus.rs` — conversation persistence subscriber.
+- `src/Benito/channels/bus.rs` — `ChannelInboundSubscriber`.
+- `src/Benito/cron/{bus,scheduler}.rs` — `CronDeliverySubscriber` + `CronJobTriggered` emission.
+- `src/Benito/webhooks/bus.rs` — `WebhookRequestSubscriber`.
+- `src/Benito/health/bus.rs` — health-event subscriber.
+- `src/Benito/update/scheduler.rs` — update-cycle events.
+- `src/Benito/tree_summarizer/{engine,bus}.rs` — async summarisation triggers.
+- `src/Benito/composio/bus.rs`, `notifications/`, `learning/` — analytics fan-out.
 
 ## Tests
 
