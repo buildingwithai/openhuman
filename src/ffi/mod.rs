@@ -240,6 +240,98 @@ enum SubagentStatus {
     Failed(String),
 }
 
+/// Stop hooks: cost/time/iteration limits for agent turns.
+struct StopHooks {
+    /// Maximum number of tool call iterations per turn
+    max_iterations: usize,
+    /// Maximum wall-clock time for a turn (seconds)
+    max_time_seconds: f64,
+    /// Maximum cost per turn (in cents, 0 = unlimited)
+    max_cost_cents: u64,
+    /// Current turn tracking
+    current_iteration: usize,
+    turn_start: Option<std::time::Instant>,
+    current_cost_cents: u64,
+}
+
+impl StopHooks {
+    fn new() -> Self {
+        Self {
+            max_iterations: 20,
+            max_time_seconds: 300.0,
+            max_cost_cents: 0,
+            current_iteration: 0,
+            turn_start: None,
+            current_cost_cents: 0,
+        }
+    }
+
+    fn start_turn(&mut self) {
+        self.current_iteration = 0;
+        self.turn_start = Some(std::time::Instant::now());
+        self.current_cost_cents = 0;
+    }
+
+    fn tick_iteration(&mut self) -> StopReason {
+        self.current_iteration += 1;
+        if self.current_iteration > self.max_iterations {
+            return StopReason::MaxIterations(self.max_iterations);
+        }
+        if let Some(start) = self.turn_start {
+            let elapsed = start.elapsed().as_secs_f64();
+            if elapsed > self.max_time_seconds {
+                return StopReason::MaxTime(self.max_time_seconds);
+            }
+        }
+        if self.max_cost_cents > 0 && self.current_cost_cents > self.max_cost_cents {
+            return StopReason::MaxCost(self.max_cost_cents);
+        }
+        StopReason::Continue
+    }
+
+    fn add_cost(&mut self, cents: u64) {
+        self.current_cost_cents += cents;
+    }
+
+    fn set_max_iterations(&mut self, max: usize) {
+        self.max_iterations = max;
+    }
+
+    fn set_max_time(&mut self, seconds: f64) {
+        self.max_time_seconds = seconds;
+    }
+
+    fn set_max_cost(&mut self, cents: u64) {
+        self.max_cost_cents = cents;
+    }
+}
+
+enum StopReason {
+    Continue,
+    MaxIterations(usize),
+    MaxTime(f64),
+    MaxCost(u64),
+}
+
+/// Tool scope/permission levels for filtering.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ToolScope {
+    Read,
+    Write,
+    Admin,
+}
+
+impl ToolScope {
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "read" => Some(ToolScope::Read),
+            "write" => Some(ToolScope::Write),
+            "admin" => Some(ToolScope::Admin),
+            _ => None,
+        }
+    }
+}
+
 /// Opaque handle to the agent runtime. Swift sees this as `UnsafeMutableRawPointer`.
 pub struct BenitoAgentHandle {
     runtime: Runtime,
@@ -258,6 +350,10 @@ pub struct BenitoAgentHandle {
     memory_store: MemoryStore,
     /// Sub-agent registry
     subagents: HashMap<String, SubagentHandle>,
+    /// Stop hooks: cost/time/iteration limits
+    stop_hooks: StopHooks,
+    /// Tool filtering by scope/permission
+    tool_scopes: HashMap<String, ToolScope>,
 }
 
 /// Callbacks from Rust → Swift. Each field is an `extern "C"` function pointer.
@@ -309,6 +405,8 @@ pub unsafe extern "C" fn benito_agent_init() -> *mut BenitoAgentHandle {
         approval_gate: ApprovalGate::new(),
         memory_store: MemoryStore::new(),
         subagents: HashMap::new(),
+        stop_hooks: StopHooks::new(),
+        tool_scopes: HashMap::new(),
     });
 
     Box::into_raw(handle)
@@ -705,6 +803,148 @@ pub unsafe extern "C" fn benito_agent_subagent_count(
         return 0;
     }
     (*handle).subagents.len() as i32
+}
+
+// ─── Stop Hooks ──────────────────────────────────────────────────────
+
+/// Set the maximum number of iterations per agent turn.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_set_max_iterations(
+    handle: *mut BenitoAgentHandle,
+    max: usize,
+) {
+    if !handle.is_null() {
+        (*handle).stop_hooks.set_max_iterations(max);
+    }
+}
+
+/// Set the maximum time (seconds) for an agent turn.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_set_max_time(
+    handle: *mut BenitoAgentHandle,
+    seconds: f64,
+) {
+    if !handle.is_null() {
+        (*handle).stop_hooks.set_max_time(seconds);
+    }
+}
+
+/// Set the maximum cost (cents) for an agent turn. 0 = unlimited.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_set_max_cost(
+    handle: *mut BenitoAgentHandle,
+    cents: u64,
+) {
+    if !handle.is_null() {
+        (*handle).stop_hooks.set_max_cost(cents);
+    }
+}
+
+/// Get the current iteration count for the active turn.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_current_iteration(
+    handle: *mut BenitoAgentHandle,
+) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+    (*handle).stop_hooks.current_iteration as i32
+}
+
+/// Get the current cost (cents) for the active turn.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_current_cost(
+    handle: *mut BenitoAgentHandle,
+) -> u64 {
+    if handle.is_null() {
+        return 0;
+    }
+    (*handle).stop_hooks.current_cost_cents
+}
+
+// ─── Tool Filtering ──────────────────────────────────────────────────
+
+/// Set the scope/permission level for a tool.
+/// Returns 0 on success, -1 on failure.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_set_tool_scope(
+    handle: *mut BenitoAgentHandle,
+    tool_name: *const c_char,
+    scope: *const c_char,
+) -> i32 {
+    if handle.is_null() || tool_name.is_null() || scope.is_null() {
+        return -1;
+    }
+    let name = match CStr::from_ptr(tool_name).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+    let scope_str = match CStr::from_ptr(scope).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+    if let Some(tool_scope) = ToolScope::from_str(&scope_str) {
+        (*handle).tool_scopes.insert(name, tool_scope);
+        0
+    } else {
+        -1
+    }
+}
+
+/// Get the scope for a tool. Returns: 0=read, 1=write, 2=admin, -1=not found.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_get_tool_scope(
+    handle: *mut BenitoAgentHandle,
+    tool_name: *const c_char,
+) -> i32 {
+    if handle.is_null() || tool_name.is_null() {
+        return -1;
+    }
+    let name = match CStr::from_ptr(tool_name).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+    match (*handle).tool_scopes.get(&name) {
+        Some(ToolScope::Read) => 0,
+        Some(ToolScope::Write) => 1,
+        Some(ToolScope::Admin) => 2,
+        None => -1,
+    }
+}
+
+/// Check if a tool is allowed given a maximum permitted scope.
+/// Returns 1 if allowed, 0 if blocked.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_check_tool_permission(
+    handle: *mut BenitoAgentHandle,
+    tool_name: *const c_char,
+    max_scope: *const c_char,
+) -> i32 {
+    if handle.is_null() || tool_name.is_null() || max_scope.is_null() {
+        return 0;
+    }
+    let name = match CStr::from_ptr(tool_name).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    let max_str = match CStr::from_ptr(max_scope).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    let max_scope = match ToolScope::from_str(&max_str) {
+        Some(s) => s,
+        None => return 0,
+    };
+    let tool_scope = match (*handle).tool_scopes.get(&name) {
+        Some(s) => *s,
+        None => return 1, // No scope set = allow by default
+    };
+    match (tool_scope, max_scope) {
+        (ToolScope::Read, _) => 1,
+        (ToolScope::Write, ToolScope::Write) | (ToolScope::Write, ToolScope::Admin) => 1,
+        (ToolScope::Admin, ToolScope::Admin) => 1,
+        _ => 0,
+    }
 }
 
 // ─── Agent loop entry point ──────────────────────────────────────────
