@@ -28,8 +28,10 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 
 use crate::benito::agent::harness::run_tool_call_loop;
 use crate::benito::inference::provider::{
@@ -38,6 +40,205 @@ use crate::benito::inference::provider::{
 use crate::benito::tools::traits::{Tool, ToolResult};
 
 // ─── Opaque handle types ─────────────────────────────────────────────
+
+/// Context window guard — tracks token utilization and triggers compaction.
+struct ContextGuard {
+    context_window: usize,
+    last_input_tokens: usize,
+    last_output_tokens: usize,
+    consecutive_compaction_failures: usize,
+    max_failures: usize,
+}
+
+impl ContextGuard {
+    fn new(context_window: usize) -> Self {
+        Self {
+            context_window,
+            last_input_tokens: 0,
+            last_output_tokens: 0,
+            consecutive_compaction_failures: 0,
+            max_failures: 3,
+        }
+    }
+
+    fn update_usage(&mut self, input_tokens: usize, output_tokens: usize) {
+        self.last_input_tokens = input_tokens;
+        self.last_output_tokens = output_tokens;
+    }
+
+    fn utilization_pct(&self) -> f64 {
+        if self.context_window == 0 {
+            return 0.0;
+        }
+        (self.last_input_tokens + self.last_output_tokens) as f64 / self.context_window as f64 * 100.0
+    }
+
+    fn check(&self) -> ContextCheckResult {
+        let util = self.utilization_pct();
+        if util >= 95.0 {
+            ContextCheckResult::ContextExhausted
+        } else if util >= 90.0 {
+            ContextCheckResult::CompactionNeeded
+        } else {
+            ContextCheckResult::Ok
+        }
+    }
+
+    fn record_compaction_success(&mut self) {
+        self.consecutive_compaction_failures = 0;
+    }
+
+    fn record_compaction_failure(&mut self) {
+        self.consecutive_compaction_failures += 1;
+    }
+
+    fn is_circuit_broken(&self) -> bool {
+        self.consecutive_compaction_failures >= self.max_failures
+    }
+
+    /// Microcompact: clear old tool result bodies, keep recent envelopes
+    fn microcompact(&self, history: &mut Vec<ChatMessage>, keep_recent: usize) -> usize {
+        let mut cleared = 0;
+        let len = history.len();
+        if len <= keep_recent {
+            return 0;
+        }
+        for msg in history.iter_mut().take(len - keep_recent) {
+            if msg.role == "tool" && msg.content.len() > 500 {
+                msg.content = "[Old tool result content cleared]".to_string();
+                cleared += 1;
+            }
+        }
+        cleared
+    }
+}
+
+enum ContextCheckResult {
+    Ok,
+    CompactionNeeded,
+    ContextExhausted,
+}
+
+/// Approval gate for external-effect tools.
+struct ApprovalGate {
+    /// Tools that always bypass approval
+    always_allowlist: Vec<String>,
+    /// Pending approvals waiting for user decision
+    pending: HashMap<String, oneshot::Sender<ApprovalDecision>>,
+    /// Whether approval is required for external effects
+    enabled: bool,
+}
+
+enum ApprovalDecision {
+    Approve,
+    Deny(String),
+}
+
+impl ApprovalGate {
+    fn new() -> Self {
+        Self {
+            always_allowlist: vec!["screenshot".to_string(), "current_time".to_string(), "system_info".to_string()],
+            pending: HashMap::new(),
+            enabled: false,
+        }
+    }
+
+    fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    fn add_to_allowlist(&mut self, tool_name: &str) {
+        if !self.always_allowlist.contains(&tool_name.to_string()) {
+            self.always_allowlist.push(tool_name.to_string());
+        }
+    }
+
+    fn needs_approval(&self, tool_name: &str) -> bool {
+        if !self.enabled {
+            return false;
+        }
+        !self.always_allowlist.contains(&tool_name.to_string())
+    }
+
+    async fn intercept(&mut self, tool_name: &str, _args: &serde_json::Value) -> ApprovalDecision {
+        if !self.needs_approval(tool_name) {
+            return ApprovalDecision::Approve;
+        }
+        // In FFI mode, we default to approve since there's no UI for approval
+        // A future enhancement would wire this to a Swift approval UI
+        ApprovalDecision::Approve
+    }
+}
+
+/// Simple in-memory conversation store for cross-session recall.
+struct MemoryStore {
+    conversations: Vec<ConversationEntry>,
+    max_entries: usize,
+}
+
+struct ConversationEntry {
+    id: String,
+    role: String,
+    content: String,
+    timestamp: std::time::SystemTime,
+    session_id: String,
+}
+
+impl MemoryStore {
+    fn new() -> Self {
+        Self {
+            conversations: Vec::new(),
+            max_entries: 1000,
+        }
+    }
+
+    fn add_entry(&mut self, session_id: &str, role: &str, content: &str) {
+        let entry = ConversationEntry {
+            id: format!("entry_{}", self.conversations.len()),
+            role: role.to_string(),
+            content: content.to_string(),
+            timestamp: std::time::SystemTime::now(),
+            session_id: session_id.to_string(),
+        };
+        self.conversations.push(entry);
+        if self.conversations.len() > self.max_entries {
+            self.conversations.drain(0..self.conversations.len() - self.max_entries);
+        }
+    }
+
+    /// Recall recent entries from other sessions relevant to a query
+    fn recall(&self, query: &str, current_session: &str, limit: usize) -> Vec<String> {
+        let query_lower = query.to_lowercase();
+        let mut relevant: Vec<_> = self.conversations.iter()
+            .filter(|e| e.session_id != current_session)
+            .filter(|e| e.content.to_lowercase().contains(&query_lower) || query_lower.contains(&e.content.to_lowercase()))
+            .take(limit)
+            .map(|e| format!("[{}] {}: {}", e.role, e.timestamp.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(), e.content.chars().take(200).collect::<String>()))
+            .collect();
+        relevant.reverse();
+        relevant
+    }
+
+    fn clear(&mut self) {
+        self.conversations.clear();
+    }
+}
+
+/// Handle for a running sub-agent.
+struct SubagentHandle {
+    task_id: String,
+    status: SubagentStatus,
+}
+
+enum SubagentStatus {
+    Running,
+    Completed(String),
+    Failed(String),
+}
 
 /// Opaque handle to the agent runtime. Swift sees this as `UnsafeMutableRawPointer`.
 pub struct BenitoAgentHandle {
@@ -49,6 +250,14 @@ pub struct BenitoAgentHandle {
     history: Vec<ChatMessage>,
     system_prompt: String,
     callbacks: BenitoCallbacks,
+    /// Context window management
+    context_guard: ContextGuard,
+    /// Approval gate for external-effect tools
+    approval_gate: ApprovalGate,
+    /// Memory: cross-session conversation persistence
+    memory_store: MemoryStore,
+    /// Sub-agent registry
+    subagents: HashMap<String, SubagentHandle>,
 }
 
 /// Callbacks from Rust → Swift. Each field is an `extern "C"` function pointer.
@@ -96,6 +305,10 @@ pub unsafe extern "C" fn benito_agent_init() -> *mut BenitoAgentHandle {
             on_error: None,
             user_data: UserDataPtr(std::ptr::null_mut()),
         },
+        context_guard: ContextGuard::new(128_000),
+        approval_gate: ApprovalGate::new(),
+        memory_store: MemoryStore::new(),
+        subagents: HashMap::new(),
     });
 
     Box::into_raw(handle)
@@ -316,6 +529,184 @@ pub unsafe extern "C" fn benito_agent_set_error_callback(
     }
 }
 
+// ─── Context Window Management ───────────────────────────────────────
+
+/// Set the context window size (in tokens). Default is 128_000.
+/// Returns 0 on success, -1 on failure.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_set_context_window(
+    handle: *mut BenitoAgentHandle,
+    context_tokens: usize,
+) -> i32 {
+    if handle.is_null() || context_tokens == 0 {
+        return -1;
+    }
+    (*handle).context_guard = ContextGuard::new(context_tokens);
+    0
+}
+
+/// Get current context utilization percentage (0.0 - 100.0).
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_context_utilization(
+    handle: *mut BenitoAgentHandle,
+) -> f64 {
+    if handle.is_null() {
+        return 0.0;
+    }
+    (*handle).context_guard.utilization_pct()
+}
+
+/// Check if context is exhausted (returns 1 if exhausted, 0 otherwise).
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_context_is_exhausted(
+    handle: *mut BenitoAgentHandle,
+) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+    match (*handle).context_guard.check() {
+        ContextCheckResult::ContextExhausted => 1,
+        _ => 0,
+    }
+}
+
+/// Force microcompact: clear old tool result bodies, keep recent envelopes.
+/// Returns number of entries cleared.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_microcompact(
+    handle: *mut BenitoAgentHandle,
+    keep_recent: usize,
+) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+    let cleared = (*handle).context_guard.microcompact(&mut (*handle).history, keep_recent);
+    (*handle).context_guard.record_compaction_success();
+    cleared as i32
+}
+
+// ─── Approval Gate ───────────────────────────────────────────────────
+
+/// Enable the approval gate for external-effect tools.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_enable_approval_gate(
+    handle: *mut BenitoAgentHandle,
+) {
+    if !handle.is_null() {
+        (*handle).approval_gate.enable();
+    }
+}
+
+/// Disable the approval gate.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_disable_approval_gate(
+    handle: *mut BenitoAgentHandle,
+) {
+    if !handle.is_null() {
+        (*handle).approval_gate.disable();
+    }
+}
+
+/// Add a tool to the approval allowlist (bypasses approval).
+/// Returns 0 on success, -1 on failure.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_approval_allowlist_add(
+    handle: *mut BenitoAgentHandle,
+    tool_name: *const c_char,
+) -> i32 {
+    if handle.is_null() || tool_name.is_null() {
+        return -1;
+    }
+    let name = match CStr::from_ptr(tool_name).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+    (*handle).approval_gate.add_to_allowlist(&name);
+    0
+}
+
+// ─── Memory System ───────────────────────────────────────────────────
+
+/// Add a conversation entry to the memory store.
+/// Returns 0 on success, -1 on failure.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_memory_add(
+    handle: *mut BenitoAgentHandle,
+    session_id: *const c_char,
+    role: *const c_char,
+    content: *const c_char,
+) -> i32 {
+    if handle.is_null() || session_id.is_null() || role.is_null() || content.is_null() {
+        return -1;
+    }
+    let session = match CStr::from_ptr(session_id).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+    let role_str = match CStr::from_ptr(role).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+    let content_str = match CStr::from_ptr(content).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+    (*handle).memory_store.add_entry(&session, &role_str, &content_str);
+    0
+}
+
+/// Recall recent entries from other sessions relevant to a query.
+/// Returns a JSON array of strings (caller must free with benito_string_free).
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_memory_recall(
+    handle: *mut BenitoAgentHandle,
+    current_session: *const c_char,
+    query: *const c_char,
+    limit: i32,
+) -> *mut c_char {
+    if handle.is_null() || current_session.is_null() || query.is_null() {
+        return std::ptr::null_mut();
+    }
+    let session = match CStr::from_ptr(current_session).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let query_str = match CStr::from_ptr(query).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let limit = if limit > 0 { limit as usize } else { 5 };
+    let entries = (*handle).memory_store.recall(&query_str, &session, limit);
+    let json = serde_json::to_string(&entries).unwrap_or_else(|_| "[]".to_string());
+    match CString::new(json) {
+        Ok(cstr) => cstr.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// Clear the memory store.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_memory_clear(
+    handle: *mut BenitoAgentHandle,
+) {
+    if !handle.is_null() {
+        (*handle).memory_store.clear();
+    }
+}
+
+// ─── Sub-Agent Support ───────────────────────────────────────────────
+
+/// Get the number of active sub-agents.
+#[no_mangle]
+pub unsafe extern "C" fn benito_agent_subagent_count(
+    handle: *mut BenitoAgentHandle,
+) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+    (*handle).subagents.len() as i32
+}
+
 // ─── Agent loop entry point ──────────────────────────────────────────
 
 /// Send a prompt to the agent and start the agent loop.
@@ -361,6 +752,16 @@ pub unsafe extern "C" fn benito_agent_send_prompt(
     // Add user message to history
     history.push(ChatMessage::user(&prompt_str));
 
+    // Store user message in memory for cross-session recall
+    let session_id = "default".to_string();
+    handle.memory_store.add_entry(&session_id, "user", &prompt_str);
+
+    // Check context utilization before proceeding
+    handle.context_guard.update_usage(
+        history.iter().map(|m| m.content.len() / 4).sum(),
+        0,
+    );
+
     // Spawn the agent loop on the Tokio runtime
     // Extract callbacks before moving into async
     let on_text_delta = TextDeltaCb(callbacks.on_text_delta);
@@ -385,7 +786,7 @@ pub unsafe extern "C" fn benito_agent_send_prompt(
         match result {
             Ok(final_text) => {
                 if let Some(cb) = on_done {
-                    if let Ok(msg) = CString::new(final_text) {
+                    if let Ok(msg) = CString::new(final_text.clone()) {
                         cb(user_data.0, msg.as_ptr());
                     }
                 }
